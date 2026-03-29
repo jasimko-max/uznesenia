@@ -386,7 +386,7 @@ const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'
 const AV_COLORS = {blue:'av-blue',green:'av-green',purple:'av-purple',amber:'av-amber',red:'av-red'};
 
 // ── APP STATE ────────────────────────────────────────
-let API_URL = localStorage.getItem('uzn_url') || '';
+let API_URL = localStorage.getItem('uzn_url') || 'https://script.google.com/macros/s/AKfycbzNH1e8Y7QSfxe7k2wrxiyIgAEbw-afOdfwJ--7MSEgX3NrsRXNbPw4V33U3AUHfSO3/exec';
 let CUR_UID = null;
 let D = { config:{}, users:[], groups:[], meetings:[], tasks:[], plans:{} }; // live data cache
 
@@ -429,14 +429,23 @@ function resetSetup() {
 
 async function initApp() {
   if (!API_URL) return;
+  // Show loading spinner while connecting
+  document.getElementById('setupWrap').style.display = 'flex';
+  document.getElementById('setupStep1').style.display = 'none';
+  document.getElementById('setupLogin').innerHTML = '<div style="text-align:center;padding:20px"><div style="width:36px;height:36px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px;color:#8892B0">Pripájam sa k databáze…</div></div>';
+  document.getElementById('setupLogin').style.display = 'block';
   try {
-    D = await apiGet('', API_URL);
+    // init action creates sheets if needed AND returns all data
+    D = await apiGet('init', API_URL);
+    localStorage.setItem('uzn_url', API_URL);
     showLoginStep();
-    document.getElementById('setupSub').textContent = (D.config.school||'') + ' · ' + (D.config.sy||'');
+    document.getElementById('setupSub').textContent = (D.config.school||'ZŠ s MŠ Višňové 446') + ' · ' + (D.config.sy||'2025/2026');
   } catch(e) {
+    document.getElementById('setupLogin').innerHTML = '';
     document.getElementById('setupStep1').style.display = 'block';
     document.getElementById('setupLogin').style.display = 'none';
-    toast('Problém s pripojením. Skontrolujte URL.','err');
+    document.getElementById('errBox').textContent = '⚠ Chyba pripojenia: ' + e.message + '. Skúste obnoviť stránku (F5).';
+    document.getElementById('errBox').style.display = 'block';
   }
 }
 
@@ -1303,7 +1312,10 @@ function toast(msg,type=''){
 
 // ── ŠTART ────────────────────────────────────────────
 window.addEventListener('load',()=>{
-  if(API_URL) initApp();
+  if(API_URL) {
+    // URL je nastavená — preskočíme setup, rovno načítame
+    initApp();
+  }
 });
 </script>
 </body>
