@@ -435,16 +435,32 @@ function resetSetup() {
 
 async function initApp() {
   if (!API_URL) return;
+  const loader = document.getElementById('loginLoader');
+  const errBox = document.getElementById('errBox');
   try {
-    D = await apiGet('init', API_URL);
+    loader.innerHTML = '<div style="width:36px;height:36px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px;color:#8892B0">Pripájam sa k databáze…</div>';
+    // Timeout po 15 sekundách
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const url = API_URL + '?action=init';
+    const resp = await fetch(url, { redirect: 'follow', signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await resp.text();
+    let json;
+    try { json = JSON.parse(text); } catch(pe) {
+      throw new Error('Odpoveď nie je JSON. Prvých 200 znakov: ' + text.substring(0,200));
+    }
+    if (!json.ok) throw new Error(json.error || 'GAS vrátil chybu');
+    D = json.data;
+    if (!D.users || D.users.length === 0) throw new Error('Databáza je prázdna – spustite manualSeed() v Apps Script');
     localStorage.setItem('uzn_url', API_URL);
     showLoginStep();
     document.getElementById('setupSub').textContent = (D.config.school||'ZŠ s MŠ Višňové 446') + ' · ' + (D.config.sy||'2025/2026');
   } catch(e) {
-    document.getElementById('loginLoader').style.display = 'none';
+    loader.style.display = 'none';
     document.getElementById('setupStep1').style.display = 'block';
-    document.getElementById('errBox').textContent = '⚠ Chyba pripojenia: ' + (e.message||'neznáma chyba') + '. Skúste obnoviť stránku (F5).';
-    document.getElementById('errBox').style.display = 'block';
+    errBox.innerHTML = '<strong>⚠ Chyba pripojenia:</strong><br>' + (e.message||'neznáma chyba');
+    errBox.style.display = 'block';
   }
 }
 
