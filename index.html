@@ -1338,7 +1338,8 @@ window.addEventListener('load',()=>{
   if(API_URL) {
     document.getElementById('setupStep1').style.display='none';
     document.getElementById('setupLogin').style.display='block';
-    document.getElementById('setupLogin').innerHTML='<div style="text-align:center;padding:20px 0"><div style="width:36px;height:36px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px;color:#8892B0">Pripájam sa k databáze…</div></div>';
+    document.getElementById('loginLoader').style.display='block';
+    document.getElementById('loginForm').style.display='none';
     initApp();
   }
 });
