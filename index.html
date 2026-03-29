@@ -222,7 +222,7 @@ tr:hover td{background:#FAFBFF}
     <div class="logo-row"><div class="logo-ico">📚</div><div class="logo-name">Manažér Uznesení</div></div>
     <div class="logo-sub" id="setupSub">ZŠ s MŠ Višňové 446 · Nastavenie</div>
 
-    <div id="setupStep1">
+    <div id="setupStep1" style="display:none">
       <div class="info-box">
         <strong>Prvé spustenie – 3 jednoduché kroky:</strong><br><br>
         <div class="step-row"><span class="step-nr">1</span>Otvorte <strong>script.google.com</strong> → Nový projekt → skopírujte obsah <code>Code.gs</code></div>
@@ -236,10 +236,16 @@ tr:hover td{background:#FAFBFF}
       <div style="margin-top:12px;font-size:12px;color:var(--tx3);text-align:center">Dáta sa uložia do Google Sheets vášho účtu. Zadarmo, žiadna databáza.</div>
     </div>
 
-    <div id="setupLogin" style="display:none">
+    <div id="setupLogin">
+      <div id="loginForm" style="display:none">
       <div class="fg"><label class="flbl">Prihlásiť sa ako</label>
         <select class="fc" id="userSel"><option value="">— Vyberte meno —</option></select></div>
       <button class="mbtn-big" onclick="login()">Prihlásiť sa →</button>
+      </div>
+      <div id="loginLoader" style="text-align:center;padding:20px 0">
+        <div style="width:36px;height:36px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div>
+        <div style="font-size:13px;color:#8892B0">Pripájam sa k databáze…</div>
+      </div>
       <div style="margin-top:10px;font-size:12px;color:var(--tx3);text-align:center">
         <a href="#" onclick="resetSetup();return false" style="color:var(--tx3)">Zmeniť URL skriptu</a>
       </div>
@@ -435,10 +441,9 @@ async function initApp() {
     showLoginStep();
     document.getElementById('setupSub').textContent = (D.config.school||'ZŠ s MŠ Višňové 446') + ' · ' + (D.config.sy||'2025/2026');
   } catch(e) {
+    document.getElementById('loginLoader').style.display = 'none';
     document.getElementById('setupStep1').style.display = 'block';
-    document.getElementById('setupLogin').innerHTML = '';
-    document.getElementById('setupLogin').style.display = 'none';
-    document.getElementById('errBox').textContent = '⚠ Chyba pripojenia: ' + e.message + '. Skúste obnoviť stránku (F5).';
+    document.getElementById('errBox').textContent = '⚠ Chyba pripojenia: ' + (e.message||'neznáma chyba') + '. Skúste obnoviť stránku (F5).';
     document.getElementById('errBox').style.display = 'block';
   }
 }
