@@ -494,14 +494,40 @@ function logout() {
 }
 
 // ── API ──────────────────────────────────────────────
-async function apiGet(action, url) {
-  url = url || API_URL;
-  const u = action ? `${url}?action=${action}` : url;
-  const r = await fetch(u, { redirect: 'follow' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Neznáma chyba');
-  return j.data;
+function apiGet(action, url) {
+  return new Promise(function(resolve, reject) {
+    url = url || API_URL;
+    var cbName = 'cb_' + Date.now();
+    var script = document.createElement('script');
+    var u = (action ? url + '?action=' + action : url) + '&callback=' + cbName;
+    var timer = setTimeout(function() {
+      delete window[cbName];
+      document.body.removeChild(script);
+      // Fallback: try plain fetch (works in some environments)
+      fetch(url + (action ? '?action=' + action : ''), { redirect: 'follow' })
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (!j.ok) reject(new Error(j.error || 'Chyba servera'));
+          else resolve(j.data);
+        })
+        .catch(function(e) { reject(e); });
+    }, 8000);
+    window[cbName] = function(j) {
+      clearTimeout(timer);
+      delete window[cbName];
+      document.body.removeChild(script);
+      if (!j.ok) reject(new Error(j.error || 'Chyba servera'));
+      else resolve(j.data);
+    };
+    script.onerror = function() {
+      clearTimeout(timer);
+      delete window[cbName];
+      document.body.removeChild(script);
+      reject(new Error('Skript sa nedal načítať. Overte URL a nasadenie Apps Scriptu.'));
+    };
+    script.src = u;
+    document.body.appendChild(script);
+  });
 }
 
 async function apiPost(action, payload) {
