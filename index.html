@@ -827,14 +827,15 @@ function renderTBody() {
     const compStr=members.length>1?`${doneC}/${members.length}`:'';
     const compDetail=members.length>1?members.map(uid=>{
       const c=comp[uid]; const u=uById(uid);
-      return`<div class="comp-row">${avEl(uid,20)}<span style="flex:1;font-size:11px">${u.name.split(' ').pop()}</span>
-        ${c?.done?`<span style="color:var(--ac);font-size:11px">✓${c.note?' – '+c.note:''}</span>`:`<span style="color:var(--tx3);font-size:11px">—</span>`}
-      </div>`;
+      const doneSpan = c?.done
+        ? '<span style="color:var(--ac);font-size:11px">✓'+(c.note?' – '+c.note:'')+'</span>'
+        : '<span style="color:var(--tx3);font-size:11px">—</span>';
+      return '<div class="comp-row">'+avEl(uid,20)+'<span style="flex:1;font-size:11px">'+u.name.split(' ').pop()+'</span>'+doneSpan+'</div>';
     }).join(''):'';
     return`<tr>
-      <td><div style="font-size:11px;font-weight:600;color:var(--tx3)">${t.no}</div><div style="font-size:13px;font-weight:500">${t.txt}</div>${t.note?`<div style="font-size:11px;color:var(--tx3);margin-top:2px">💬 ${t.note}</div>`:''}</td>
+      <td><div style="font-size:11px;font-weight:600;color:var(--tx3)">${t.no}</div><div style="font-size:13px;font-weight:500">${t.txt}</div>${t.note?'<div style="font-size:11px;color:var(--tx3);margin-top:2px">💬 '+t.note+'</div>':''}</td>
       <td style="font-size:12px">${respLabel(t.respType,t.respVal)}</td>
-      <td>${compDetail?`<div style="min-width:150px">${compDetail}</div>`:badge(st)}</td>
+      <td>${compDetail?'<div style="min-width:150px">'+compDetail+'</div>':badge(st)}</td>
       <td style="font-size:12px;color:var(--tx2)">${t.cat}</td>
       <td style="font-size:12px;white-space:nowrap">${fmt(t.dead)}</td>
       <td>${badge(st,compStr)}</td>
@@ -1113,12 +1114,21 @@ function renderTTab() {
     if(!pm?.published){area.innerHTML=`<div class="empty">📅<br>Plán na tento mesiac ešte nie je zverejnený.</div>`;return;}
     const approvedActs=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>a.date>b.date?1:-1);
     const monthMeets=D.meetings.filter(m=>m.date&&m.date.startsWith(mk));
-    area.innerHTML=`<div style="font-size:15px;font-weight:700;margin-bottom:14px">Plán práce – ${monthLabel(mk)}</div>
-      ${['A/ Dôležité dni',(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1).map(d=>`<div class="prow"><div class="pdate">${fmtS(d.date)}</div><div class="ptxt"><strong>${d.name}</strong>${d.note?`<div style="font-size:12px;color:var(--tx3)">${d.note}</div>`:''}</div></div>`).join('')||'<div class="plan-empty">Žiadne</div>',
-        'B/ Porady',monthMeets.map(m=>`<div class="prow"><div class="pdate">${fmtS(m.date)}${m.time?' '+m.time:''}</div><div class="ptxt"><span class="mctype t-${m.type}" style="margin:0 5px 0 0">${m.type}</span><strong>${m.name}</strong></div></div>`).join('')||'<div class="plan-empty">Žiadne</div>',
-        'C/ Aktivity',approvedActs.map(a=>`<div class="prow"><div class="pdate">${fmtS(a.date)}</div><div class="ptxt"><strong>${a.name}</strong><div style="font-size:12px;color:var(--tx3)">${a.cls} · ${respLabel(a.respType||'single',a.respVal)}</div></div></div>`).join('')||'<div class="plan-empty">Žiadne</div>'
-      ].reduce((acc,v,i)=>acc+(i%2===0?`<div class="plan-section"><div class="plan-sec-hdr"><div class="plan-sec-lbl">${v}</div></div><div class="plan-body">`:v+'</div></div>'),'')
-    `;
+    const daysHtml = (pm.days||[]).sort((a,b)=>a.date>b.date?1:-1).map(d=>{
+      const note = d.note ? '<div style="font-size:12px;color:var(--tx3)">'+d.note+'</div>' : '';
+      return '<div class="prow"><div class="pdate">'+fmtS(d.date)+'</div><div class="ptxt"><strong>'+d.name+'</strong>'+note+'</div></div>';
+    }).join('') || '<div class="plan-empty">Žiadne</div>';
+    const meetsHtml = monthMeets.map(m=>{
+      return '<div class="prow"><div class="pdate">'+fmtS(m.date)+(m.time?' '+m.time:'')+'</div><div class="ptxt"><span class="mctype t-'+m.type+'" style="margin:0 5px 0 0">'+m.type+'</span><strong>'+m.name+'</strong></div></div>';
+    }).join('') || '<div class="plan-empty">Žiadne</div>';
+    const actsHtml = approvedActs.map(a=>{
+      return '<div class="prow"><div class="pdate">'+fmtS(a.date)+'</div><div class="ptxt"><strong>'+a.name+'</strong><div style="font-size:12px;color:var(--tx3)">'+a.cls+' · '+respLabel(a.respType||'single',a.respVal)+'</div></div></div>';
+    }).join('') || '<div class="plan-empty">Žiadne</div>';
+    function planSec(lbl,body){return '<div class="plan-section"><div class="plan-sec-hdr"><div class="plan-sec-lbl">'+lbl+'</div></div><div class="plan-body">'+body+'</div></div>';}
+    area.innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:14px">Plán práce – '+monthLabel(mk)+'</div>'
+      + planSec('A/ Dôležité dni', daysHtml)
+      + planSec('B/ Porady', meetsHtml)
+      + planSec('C/ Aktivity', actsHtml);
     return;
   }
 
