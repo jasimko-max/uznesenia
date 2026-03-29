@@ -392,7 +392,7 @@ const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'
 const AV_COLORS = {blue:'av-blue',green:'av-green',purple:'av-purple',amber:'av-amber',red:'av-red'};
 
 // ── APP STATE ────────────────────────────────────────
-let API_URL = localStorage.getItem('uzn_url') || 'https://script.google.com/macros/s/AKfycbzNH1e8Y7QSfxe7k2wrxiyIgAEbw-afOdfwJ--7MSEgX3NrsRXNbPw4V33U3AUHfSO3/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec'; localStorage.setItem('uzn_url', API_URL);
 let CUR_UID = null;
 let D = { config:{}, users:[], groups:[], meetings:[], tasks:[], plans:{} }; // live data cache
 
@@ -404,7 +404,7 @@ async function connectSheets() {
   btn.disabled = true; btn.textContent = 'Pripájam…';
   try {
     const data = await apiGet('init', url);
-    API_URL = url;
+    // API_URL = url; // URL je natvrdo nastavená
     localStorage.setItem('uzn_url', url);
     D = data;
     showLoginStep();
@@ -428,7 +428,7 @@ function showLoginStep() {
 }
 
 function resetSetup() {
-  localStorage.removeItem('uzn_url'); API_URL = '';
+  localStorage.removeItem('uzn_url'); // API_URL je natvrdo nastavená
   document.getElementById('setupStep1').style.display = 'block';
   document.getElementById('setupLogin').style.display = 'none';
 }
