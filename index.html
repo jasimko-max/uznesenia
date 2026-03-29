@@ -437,30 +437,39 @@ async function initApp() {
   if (!API_URL) return;
   const loader = document.getElementById('loginLoader');
   const errBox = document.getElementById('errBox');
+
+  function showErr(msg) {
+    loader.style.display = 'none';
+    document.getElementById('setupStep1').style.display = 'block';
+    errBox.innerHTML = '<strong>⚠ Chyba:</strong><br>' + msg;
+    errBox.style.display = 'block';
+  }
+
+  // Tvrdý časovač — po 10s zobrazí chybu nech sa deje čokoľvek
+  const hardTimeout = setTimeout(() => {
+    showErr('Vypršal čas (10s). Apps Script neodpovedá. Skontrolujte: nasadenie je ako Webová aplikácia, prístup = Ktokoľvek.');
+  }, 10000);
+
   try {
-    loader.innerHTML = '<div style="width:36px;height:36px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px;color:#8892B0">Pripájam sa k databáze…</div>';
-    // Timeout po 15 sekundách
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const url = API_URL + '?action=init';
-    const resp = await fetch(url, { redirect: 'follow', signal: controller.signal });
-    clearTimeout(timeout);
+    console.log('initApp: Začínam fetch na', API_URL);
+    const resp = await fetch(API_URL + '?action=init', { redirect: 'follow' });
+    console.log('initApp: Odpoveď status', resp.status, resp.url);
     const text = await resp.text();
-    let json;
-    try { json = JSON.parse(text); } catch(pe) {
-      throw new Error('Odpoveď nie je JSON. Prvých 200 znakov: ' + text.substring(0,200));
+    console.log('initApp: Text odpovede (prvých 300):', text.substring(0,300));
+    clearTimeout(hardTimeout);
+    let j;
+    try { j = JSON.parse(text); } catch(pe) {
+      throw new Error('Nie je JSON: ' + text.substring(0,200));
     }
-    if (!json.ok) throw new Error(json.error || 'GAS vrátil chybu');
-    D = json.data;
-    if (!D.users || D.users.length === 0) throw new Error('Databáza je prázdna – spustite manualSeed() v Apps Script');
+    if (!j.ok) throw new Error(j.error || 'GAS vrátil ok:false');
+    D = j.data;
+    if (!D.users || D.users.length === 0) throw new Error('users[] je prázdny — spustite manualSeed() v Apps Script editore');
     localStorage.setItem('uzn_url', API_URL);
     showLoginStep();
     document.getElementById('setupSub').textContent = (D.config.school||'ZŠ s MŠ Višňové 446') + ' · ' + (D.config.sy||'2025/2026');
   } catch(e) {
-    loader.style.display = 'none';
-    document.getElementById('setupStep1').style.display = 'block';
-    errBox.innerHTML = '<strong>⚠ Chyba pripojenia:</strong><br>' + (e.message||'neznáma chyba');
-    errBox.style.display = 'block';
+    clearTimeout(hardTimeout);
+    showErr(e.message || 'neznáma chyba');
   }
 }
 
