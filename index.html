@@ -435,40 +435,28 @@ function resetSetup() {
 
 async function initApp() {
   if (!API_URL) return;
-  const loader = document.getElementById('loginLoader');
-  const errBox = document.getElementById('errBox');
 
   function showErr(msg) {
-    loader.style.display = 'none';
-    document.getElementById('setupStep1').style.display = 'block';
-    errBox.innerHTML = '<strong>⚠ Chyba:</strong><br>' + msg;
-    errBox.style.display = 'block';
+    document.getElementById('setupLogin').innerHTML =
+      '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;font-size:13px;color:#991B1B;line-height:1.6;margin-bottom:12px">' +
+      '<strong>⚠ Chyba pripojenia:</strong><br>' + msg + '</div>' +
+      '<a href="#" onclick="localStorage.removeItem('uzn_url');location.reload();return false" style="font-size:12px;color:var(--tx3)">Zmeniť URL skriptu</a>';
   }
 
-  // Tvrdý časovač — po 10s zobrazí chybu nech sa deje čokoľvek
-  const hardTimeout = setTimeout(() => {
-    showErr('Vypršal čas (10s). Apps Script neodpovedá. Skontrolujte: nasadenie je ako Webová aplikácia, prístup = Ktokoľvek.');
-  }, 10000);
-
   try {
-    console.log('initApp: Začínam fetch na', API_URL);
     const resp = await fetch(API_URL + '?action=init', { redirect: 'follow' });
-    console.log('initApp: Odpoveď status', resp.status, resp.url);
     const text = await resp.text();
-    console.log('initApp: Text odpovede (prvých 300):', text.substring(0,300));
-    clearTimeout(hardTimeout);
     let j;
     try { j = JSON.parse(text); } catch(pe) {
-      throw new Error('Nie je JSON: ' + text.substring(0,200));
+      throw new Error('Odpoveď nie je JSON: ' + text.substring(0,150));
     }
-    if (!j.ok) throw new Error(j.error || 'GAS vrátil ok:false');
+    if (!j.ok) throw new Error(j.error || 'GAS vrátil chybu');
     D = j.data;
-    if (!D.users || D.users.length === 0) throw new Error('users[] je prázdny — spustite manualSeed() v Apps Script editore');
+    if (!D.users || D.users.length === 0) throw new Error('Databáza je prázdna. Spustite manualSeed() v Apps Script.');
     localStorage.setItem('uzn_url', API_URL);
     showLoginStep();
     document.getElementById('setupSub').textContent = (D.config.school||'ZŠ s MŠ Višňové 446') + ' · ' + (D.config.sy||'2025/2026');
   } catch(e) {
-    clearTimeout(hardTimeout);
     showErr(e.message || 'neznáma chyba');
   }
 }
