@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Školský Manažér Uznesení · ZŠ s MŠ Višňové 446</title>
+<title>Školský manažér · ZŠ s MŠ, Višňové 446</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══ NASTAVENIE: URL vašej Apps Script Web App ═══════════
@@ -219,8 +219,8 @@ tr:hover td{background:#FAFBFF}
 <!-- ══ SETUP OBRAZOVKA ══════════════════════════════════ -->
 <div class="setup-wrap" id="setupWrap">
   <div class="setup-card">
-    <div class="logo-row"><div class="logo-ico">📚</div><div class="logo-name">Manažér Uznesení</div></div>
-    <div class="logo-sub" id="setupSub">ZŠ s MŠ Višňové 446 · Nastavenie</div>
+    <div class="logo-row"><div class="logo-ico" style="padding:3px;overflow:hidden"><img src="logo.png" style="width:42px;height:42px;object-fit:contain;border-radius:10px"></div><div class="logo-name">Školský manažér</div></div>
+    <div class="logo-sub" id="setupSub">ZŠ s MŠ, Višňové 446 · Školský rok 2025/2026</div>
 
     <div id="setupStep1" style="display:none">
       <div class="info-box">
@@ -256,7 +256,7 @@ tr:hover td{background:#FAFBFF}
 <!-- ══ APP ══════════════════════════════════════════════ -->
 <div class="sh" id="shell">
   <header class="hdr">
-    <div class="hl"><div class="hi">📚</div>Manažér Uznesení</div>
+    <div class="hl"><div class="hi" style="padding:2px;overflow:hidden"><img src="logo.png" style="width:26px;height:26px;object-fit:contain;border-radius:4px"></div><span>Školský manažér <span style="font-weight:400;color:var(--tx3)">ZŠ s MŠ, Višňové 446</span></span></div>
     <div class="vsep"></div><div class="hsch">ZŠ s MŠ Višňové 446</div>
     <div class="hsy" id="hdrSY"></div>
     <div class="hr2">
@@ -392,7 +392,8 @@ const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'
 const AV_COLORS = {blue:'av-blue',green:'av-green',purple:'av-purple',amber:'av-amber',red:'av-red'};
 
 // ── APP STATE ────────────────────────────────────────
-const API_URL = 'https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec'; localStorage.setItem('uzn_url', API_URL);
+const API_URL = 'https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec';
+localStorage.setItem('uzn_url', API_URL);
 let CUR_UID = null;
 let D = { config:{}, users:[], groups:[], meetings:[], tasks:[], plans:{} }; // live data cache
 
@@ -440,7 +441,7 @@ async function initApp() {
     document.getElementById('setupLogin').innerHTML =
       '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;font-size:13px;color:#991B1B;line-height:1.6;margin-bottom:12px">' +
       '<strong>⚠ Chyba pripojenia:</strong><br>' + msg + '</div>' +
-      '<a href="#" onclick="localStorage.removeItem('uzn_url');location.reload();return false" style="font-size:12px;color:var(--tx3)">Zmeniť URL skriptu</a>';
+      '<a href="#" onclick="localStorage.removeItem(\'uzn_url\');location.reload();return false" style="font-size:12px;color:var(--tx3)">Zmeniť URL skriptu</a>';
   }
 
   try {
