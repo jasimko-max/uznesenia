@@ -458,7 +458,7 @@ function Tasks({data, onSave, onDelete, onRemind, toast}) {
               <td style={{padding:'10px 15px',fontSize:12,color:'#4A5278'}}>{t.cat}</td>
               <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{fmt(t.dead)}</td>
               <td style={{padding:'10px 15px'}}><Badge status={st} compStr={members.length>1?`${doneC}/${members.length}`:''}/></td>
-              <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4'}}>
+              <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4}}>
                 <Btn size="sm" onClick={()=>setModal(t)}>✎</Btn>
                 <Btn size="sm" onClick={()=>onRemind(t)}>🔔</Btn>
                 {st!=='splnene' && <Btn size="sm" variant="ok" onClick={async()=>{
