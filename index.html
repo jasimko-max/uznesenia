@@ -421,11 +421,20 @@ async function connectSheets() {
 }
 
 function showLoginStep() {
+  var wrap = document.getElementById('setupLogin');
+  if (!wrap) return;
+  var opts = '<option value="">— Vyberte meno —</option>' +
+    D.users.map(function(u) {
+      return '<option value="' + u.id + '">' + u.name + (u.role === 'r' ? ' (Riaditeľ)' : '') + '</option>';
+    }).join('');
+  wrap.innerHTML =
+    '<div class="fg"><label class="flbl">Prihlásiť sa ako</label>' +
+    '<select class="fc" id="userSel">' + opts + '</select></div>' +
+    '<button class="mbtn-big" onclick="login()">Prihlásiť sa →</button>' +
+    '<div style="margin-top:10px;font-size:12px;text-align:center">' +
+    '<a href="#" onclick="localStorage.removeItem('uzn_url');location.reload();return false" style="color:#8892B0">Zmeniť URL skriptu</a>' +
+    '</div>';
   document.getElementById('setupStep1').style.display = 'none';
-  document.getElementById('setupLogin').style.display = 'block';
-  const sel = document.getElementById('userSel');
-  sel.innerHTML = '<option value="">— Vyberte meno —</option>' +
-    D.users.map(u => `<option value="${u.id}">${u.name}${u.role==='r'?' (Riaditeľ)':''}</option>`).join('');
 }
 
 function resetSetup() {
