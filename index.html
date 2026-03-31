@@ -851,21 +851,44 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
             </button>;
           })}
         </div>
-        {!pm.published && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
+        {!pm.published && (pm.activities||[]).filter(a=>a.status==='pending').length===0 && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
+        {!pm.published && (pm.activities||[]).filter(a=>a.status==='pending').length>0 && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave. Nižšie sú aktivity čakajúce na schválenie riaditeľom.</div>}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           {[
-            ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)],
-            ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
+            pm.published ? ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)] : null,
+            pm.published ? ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
               const bc=MEET_BORDER[m.type]||'#E2E6F0'; const tc=MEET_TEXT[m.type]||'#1E4B8F';
               return <div key={m.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13,display:'flex',alignItems:'flex-start',gap:8}}>
                 <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:tc,border:'1px solid '+bc,flexShrink:0}}>{m.type}</span>
                 <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
-              </div>;})],
-            ['C/ Aktivity', (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=><div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{a.date?fmtS(a.date):'(mesiac '+mlabel(a.month||mk)+')'}</span>
-              <strong>{a.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{a.cls}</div></div>)],
-          ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
+              </div>;})] : null,
+            ['C/ Aktivity', (()=>{
+              const sorted = (pm.activities||[])
+                .filter(a=>a.status==='approved'||a.status==='pending')
+                .sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
+              if(!sorted.length) return [];
+              return sorted.map(a=>{
+                const isPending = a.status==='pending';
+                return <div key={a.id} style={{padding:'8px 10px',borderBottom:'1px solid #F0F4FA',fontSize:13,
+                  background:isPending?'#FFFBEB':'transparent',
+                  borderLeft:isPending?'3px solid #F59E0B':'3px solid transparent',
+                  borderRadius:isPending?5:0,marginBottom:isPending?3:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                    <span style={{fontWeight:600,color:isPending?'#B45309':'#1E4B8F',fontSize:12}}>
+                      {a.date?fmtS(a.date):a.actMonth?'📅 '+mlabel(a.actMonth):'('+mlabel(a.month||mk)+')'}
+                    </span>
+                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#B45309',
+                      padding:'1px 7px',borderRadius:10,border:'1px solid #FDE68A',whiteSpace:'nowrap'}}>
+                      🕐 čaká na schválenie
+                    </span>}
+                  </div>
+                  <strong style={{color:isPending?'#92400E':'#1a1f36'}}>{a.name}</strong>
+                  {a.cls&&a.cls!=='—'&&<div style={{fontSize:11,color:'#8892B0',marginTop:1}}>{a.cls}</div>}
+                </div>;
+              });
+            })()],
+          ].filter(Boolean).map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
             <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
             <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
           </div>)}
