@@ -46,9 +46,12 @@ const API = 'https://uznesenia-api.jasimko.workers.dev';
 const PASSWORD = '1379';
 const MONTHS = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
+function curMonthKey() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
+function defaultPlanMonth() { const c=curMonthKey(); return PLAN_MONTHS.includes(c)?c:PLAN_MONTHS[0]; }
 const AV_COLORS = {blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
-const MEET_COLORS = {PR:'#EEF3FC',PP:'#EFF6FF',MZ:'#FFF7ED',PK:'#F5F3FF',VED:'#F0FDF4',RR:'#FDF2F8'};
-const MEET_TEXT = {PR:'#1E4B8F',PP:'#1D4ED8',MZ:'#C2410C',PK:'#6D28D9',VED:'#15803D',RR:'#9D174D'};
+const MEET_COLORS = {PR:'#DBEAFE',PP:'#E0E7FF',MZ:'#FEF3C7',PK:'#EDE9FE',VED:'#D1FAE5',RR:'#FCE7F3'};
+const MEET_TEXT =  {PR:'#1E40AF',PP:'#3730A3',MZ:'#92400E',PK:'#5B21B6',VED:'#065F46',RR:'#9D174D'};
+const MEET_BORDER = {PR:'#93C5FD',PP:'#A5B4FC',MZ:'#FCD34D',PK:'#C4B5FD',VED:'#6EE7B7',RR:'#F9A8D4'};
 
 // ═══════════════════════════════════
 // API
@@ -118,8 +121,10 @@ function taskStatus(task, groups) {
   if (!members.length) return 'otvorene';
   const comp = task.completions || {};
   const done = members.filter(id => comp[id]?.done).length;
+  if (task.taskType === 'permanent') return done===members.length?'splnene':done>0?'blizi-sa':'otvorene';
   const now = new Date().toISOString().split('T')[0];
-  const over = task.dead && task.dead.substring(0,10) < now;
+  const deadRef = task.taskType==='range'&&task.deadTo ? task.deadTo.substring(0,10) : (task.dead||'').substring(0,10);
+  const over = deadRef && deadRef < now;
   if (done === members.length) return 'splnene';
   if (done > 0) return 'blizi-sa';
   if (over) return 'po-termine';
@@ -349,7 +354,7 @@ function Dashboard({data, curUser, onAddTask, onEditTask, onRemind, onAddMeet, t
                 return <tr key={t.id} style={{borderBottom:'1px solid #F0F4FA'}} onMouseEnter={e=>e.currentTarget.style.background='#FAFBFF'} onMouseLeave={e=>e.currentTarget.style.background=''}>
                   <td style={{padding:'10px 15px'}}><div style={{fontSize:11,fontWeight:600,color:'#8892B0'}}>{t.no}</div><div style={{fontSize:13,fontWeight:500}}>{t.txt}</div></td>
                   <td style={{padding:'10px 15px',fontSize:12}}>{respLabel(t.respType,t.respVal,users,groups)}</td>
-                  <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{fmt(t.dead)}</td>
+                  <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{t.taskType==='permanent'?<span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála</span>:t.taskType==='range'&&t.deadTo?fmt(t.dead)+' – '+fmt(t.deadTo):fmt(t.dead)}</td>
                   <td style={{padding:'10px 15px'}}><Badge status={st} compStr={members.length>1?`${doneC}/${members.length}`:''}/></td>
                   <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4}}>
                     <Btn size="sm" onClick={()=>onEditTask(t)}>✎</Btn>
@@ -456,7 +461,7 @@ function Tasks({data, onSave, onDelete, onRemind, toast}) {
                 </div> : <Badge status={st}/>}
               </td>
               <td style={{padding:'10px 15px',fontSize:12,color:'#4A5278'}}>{t.cat}</td>
-              <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{fmt(t.dead)}</td>
+              <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{t.taskType==='permanent'?<span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála</span>:t.taskType==='range'&&t.deadTo?fmt(t.dead)+' – '+fmt(t.deadTo):fmt(t.dead)}</td>
               <td style={{padding:'10px 15px'}}><Badge status={st} compStr={members.length>1?`${doneC}/${members.length}`:''}/></td>
               <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4}}>
                 <Btn size="sm" onClick={()=>setModal(t)}>✎</Btn>
@@ -483,7 +488,9 @@ function TaskModal({task, data, onSave, onClose}) {
   const [txt, setTxt] = useState(task.txt||'');
   const [cat, setCat] = useState(task.cat||'Pedagogika');
   const [mid, setMid] = useState(task.mid||meetings[0]?.id||'');
+  const [taskType, setTaskType] = useState(task.taskType||'normal'); // normal | permanent | range
   const [dead, setDead] = useState((task.dead||'').substring(0,10));
+  const [deadTo, setDeadTo] = useState((task.deadTo||'').substring(0,10));
   const [note, setNote] = useState(task.note||'');
   const [resp, setResp] = useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
   const [saving, setSaving] = useState(false);
@@ -493,14 +500,15 @@ function TaskModal({task, data, onSave, onClose}) {
     setSaving(true);
     const m = meetings.find(x=>x.id===mid);
     const cnt = data.tasks.filter(t=>t.mid===mid).length + (isNew?1:0);
-    const data2 = {
-      id: task.id || uid(),
-      mid, no: task.no||(m?.type||'U')+'-'+cnt,
-      txt:txt.trim(), cat, dead, note,
-      respType:resp.type, respVal:resp.val,
+    await onSave({
+      id: task.id||uid(), mid,
+      no: task.no||(m?.type||'U')+'-'+cnt,
+      txt:txt.trim(), cat, taskType,
+      dead: taskType==='permanent'?'':dead,
+      deadTo: taskType==='range'?deadTo:'',
+      note, respType:resp.type, respVal:resp.val,
       completions: task.completions||{}
-    };
-    await onSave(data2);
+    });
     setSaving(false);
   };
 
@@ -515,7 +523,14 @@ function TaskModal({task, data, onSave, onClose}) {
         {meetings.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
       </select></Field>
     </Row2>
-    <Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>
+    <Field label="Typ termínu">
+      <div style={{display:'flex',gap:6}}>
+        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
+      </div>
+    </Field>
+    {taskType==='normal' && <Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
+    {taskType==='range' && <Row2><Field label="Od"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field><Field label="Do"><input type="date" value={deadTo} onChange={e=>setDeadTo(e.target.value)}/></Field></Row2>}
+    {taskType==='permanent' && <div style={{background:'#EEF3FC',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#1E4B8F',marginBottom:14}}>🔁 Stála úloha – bez konkrétneho termínu, trvale platná.</div>}
     <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
     <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Voliteľné…" style={{resize:'vertical'}}/></Field>
   </Modal>;
@@ -539,8 +554,8 @@ function Meetings({data, onSaveMeet, onSetView, toast}) {
         const mt = tasks.filter(t=>t.mid===m.id);
         const md = mt.filter(t=>taskStatus(t,groups)==='splnene').length;
         const mo = mt.filter(t=>taskStatus(t,groups)==='po-termine').length;
-        return <div key={m.id} onClick={()=>onSetView('tasks')} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:18,cursor:'pointer',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(30,75,143,.12)';e.currentTarget.style.borderColor='#1E4B8F';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.borderColor='#E2E6F0';}}>
-          <div style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:700,marginBottom:9,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F'}}>{m.type}</div>
+        return <div key={m.id} onClick={()=>onSetView('tasks')} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',borderLeft:'5px solid '+(MEET_BORDER[m.type]||'#93C5FD'),padding:18,cursor:'pointer',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(30,75,143,.12)';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';}}>
+          <div style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:700,marginBottom:9,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F',border:'1px solid '+(MEET_BORDER[m.type]||'#93C5FD')}}>{m.type}</div>
           <div style={{fontSize:15,fontWeight:700,marginBottom:5}}>{m.name}</div>
           <div style={{fontSize:12,color:'#8892B0',marginBottom:11}}>📅 {fmt(m.date)}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div>
           <div style={{display:'flex',gap:14,fontSize:12}}>
@@ -587,11 +602,19 @@ function MeetModal({data, onSave, onClose}) {
       {Object.entries(types).map(([k,v])=><option key={k} value={k}>{v} ({k})</option>)}
     </select></Field>
     <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Field label="Dátum">
+      <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+          <input type="checkbox" checked={!dateKnown} onChange={e=>setDateKnown(!e.target.checked)} style={{accentColor:'#1E4B8F'}}/> Dátum ešte nie je známy
+        </label>
+      </div>
+      {dateKnown && <input type="date" value={date} onChange={e=>setDate(e.target.value)}/>}
+      {!dateKnown && <div style={{background:'#EEF3FC',borderRadius:9,padding:'8px 12px',fontSize:13,color:'#1E4B8F'}}>Porada bude zaradená do plánu bez dátumu.</div>}
+    </Field>
     <Row2>
-      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
+      <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
     </Row2>
-    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
   </Modal>;
 }
 
@@ -601,7 +624,7 @@ function MeetModal({data, onSave, onClose}) {
 function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, onDeleteDay, onPublish, toast}) {
   const {plans, meetings, tasks, users, groups, config} = data;
   const isDir = curUser.role==='r';
-  const [month, setMonth] = useState(PLAN_MONTHS[0]);
+  const [month, setMonth] = useState(defaultPlanMonth());
   const [actModal, setActModal] = useState(false);
   const [dayModal, setDayModal] = useState(false);
 
@@ -676,7 +699,7 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
             <div style={{fontSize:12,fontWeight:700,color:'#D97706',marginBottom:7}}>🕐 Čakajú na schválenie:</div>
             {pendActs.map(a=><div key={a.id} style={{background:'#fff',border:'1px solid #E2E6F0',borderLeft:'4px solid #D97706',borderRadius:9,padding:'11px 14px',marginBottom:8}}>
               <div style={{fontSize:13,fontWeight:600}}>{a.name}</div>
-              <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{fmt(a.date)} · {a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+              <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{a.dateType==='range'&&a.dateTo?fmt(a.date)+' – '+fmt(a.dateTo):a.date?fmt(a.date):'celý mesiac'} · {a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
               <div style={{display:'flex',gap:7,marginTop:8}}>
                 <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓ Schváliť</Btn>
                 <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕ Zamietnuť</Btn>
@@ -684,7 +707,7 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
             </div>)}
           </div>}
           {!approvedActs.length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
-          {approvedActs.map(a=><PRow key={a.id} date={fmtS(a.date)} onDel={()=>onDeleteAct(a.id,month)}>
+          {approvedActs.map(a=><PRow key={a.id} date={a.dateType==='range'&&a.dateTo?fmtS(a.date)+' – '+fmtS(a.dateTo):a.date?fmtS(a.date):'celý mesiac'} onDel={()=>onDeleteAct(a.id,month)}>
             <strong>{a.name}</strong>
             <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
           </PRow>)}
@@ -708,7 +731,9 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
 function ActModal({month, data, curUser, onSave, onClose}) {
   const {users, groups} = data;
   const [name, setName] = useState('');
+  const [dateType, setDateType] = useState('exact'); // exact | range | month_only
   const [date, setDate] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [cls, setCls] = useState('');
   const [selMonth, setSelMonth] = useState(month);
   const [note, setNote] = useState('');
@@ -716,22 +741,37 @@ function ActModal({month, data, curUser, onSave, onClose}) {
   const [saving, setSaving] = useState(false);
 
   const save = async() => {
-    if (!name||!date) return;
+    if (!name) return;
+    if (dateType==='exact' && !date) return;
+    if (dateType==='range' && (!date||!dateTo)) return;
     setSaving(true);
-    await onSave({id:'a'+uid(),date,name,cls:cls||'—',respType:resp.type,respVal:resp.val,note,status:curUser.role==='r'?'approved':'pending',month:selMonth});
+    await onSave({
+      id:'a'+uid(), name, cls:cls||'—',
+      date: dateType==='month_only'?'':date,
+      dateTo: dateType==='range'?dateTo:'',
+      dateType,
+      respType:resp.type, respVal:resp.val, note,
+      status:curUser.role==='r'?'approved':'pending', month:selMonth
+    });
     setSaving(false);
   };
 
+  const dtLabels = {exact:'Presný dátum',range:'Rozsah dátumov',month_only:'Len mesiac (dátum neznámy)'};
   return <Modal title="Pridať aktivitu do plánu" onClose={onClose}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Odosielam…':'Odoslať'}</Btn></>}>
     <Field label="Názov akcie"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Múzeum holokaustu"/></Field>
+    <Field label="Typ dátumu">
+      <div style={{display:'flex',gap:6}}>
+        {Object.entries(dtLabels).map(([k,l])=><button key={k} onClick={()=>setDateType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:dateType===k?'#1E4B8F':'#E2E6F0',background:dateType===k?'#EEF3FC':'#fff',color:dateType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
+      </div>
+    </Field>
+    {dateType==='exact' && <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>}
+    {dateType==='range' && <Row2><Field label="Od"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="Do"><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></Field></Row2>}
+    {dateType==='month_only' && <div style={{background:'#EEF3FC',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#1E4B8F',marginBottom:14}}>📅 Aktivita bude zaradená do mesiaca {mlabel(selMonth)} bez presného dátumu.</div>}
     <Row2>
-      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
+      <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
     </Row2>
-    <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>
-      {PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
-    </select></Field>
     <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
     <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}}/></Field>
   </Modal>;
@@ -767,7 +807,8 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
   const done = my.filter(t=>(t.completions||{})[uid2]?.done);
   const now = new Date().toISOString().split('T')[0];
   const today = open.filter(t=>t.dead&&t.dead.substring(0,10)===now);
-  const mk = Object.keys(plans).find(k=>k===now.substring(0,7))||PLAN_MONTHS[0];
+  const [planMonth, setPlanMonth] = useState(defaultPlanMonth());
+  const mk = planMonth;
   const pm = plans[mk]||{};
 
   const shown = tab==='open'
@@ -802,18 +843,33 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
 
     {tab==='plan' ? (
       <div>
-        {!pm.published ? <div style={{textAlign:'center',padding:'40px',color:'#8892B0'}}>📅<br/>Plán na tento mesiac ešte nie je zverejnený.</div> : (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-            {[
-              ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>a.date>b.date?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}><span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{fmtS(d.date)}</span><strong>{d.name}</strong></div>)],
-              ['B/ Porady', meetings.filter(m=>(m.date||'').startsWith(mk)).map(m=><div key={m.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}><span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{fmtS(m.date)}</span><strong>{m.name}</strong></div>)],
-              ['C/ Aktivity', (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>a.date>b.date?1:-1).map(a=><div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}><span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{fmtS(a.date)}</span><strong>{a.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{a.cls}</div></div>)],
-            ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
-              <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
-              <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
-            </div>)}
-          </div>
-        )}
+        <div style={{display:'flex',gap:7,marginBottom:16,flexWrap:'wrap'}}>
+          {PLAN_MONTHS.map(k=>{
+            const hasPub=plans[k]?.published; const on=planMonth===k;
+            return <button key={k} onClick={()=>setPlanMonth(k)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
+              {MONTHS[parseInt(k.split('-')[1])-1].substring(0,3)}
+            </button>;
+          })}
+        </div>
+        {!pm.published && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          {[
+            ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)],
+            ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
+              const bc=MEET_BORDER[m.type]||'#E2E6F0'; const tc=MEET_TEXT[m.type]||'#1E4B8F';
+              return <div key={m.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13,display:'flex',alignItems:'flex-start',gap:8}}>
+                <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:tc,border:'1px solid '+bc,flexShrink:0}}>{m.type}</span>
+                <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
+              </div>;})],
+            ['C/ Aktivity', (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=><div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{a.date?fmtS(a.date):'(mesiac '+mlabel(a.month||mk)+')'}</span>
+              <strong>{a.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{a.cls}</div></div>)],
+          ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
+            <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
+            <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
+          </div>)}
+        </div>
       </div>
     ) : (
       !shown.length ? <div style={{textAlign:'center',padding:'44px',color:'#8892B0'}}>{tab==='open'?'🎉 Nemáš žiadne otvorené úlohy!':'📭 Zatiaľ žiadne splnené.'}</div> :
@@ -836,12 +892,15 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
 function TaskCard({t, st, comp, dead, now, borderCol, members, othersDone, meetName, uid, tab, onMarkDone}) {
   const [note, setNote] = useState(comp?.note||'');
   const [saving, setSaving] = useState(false);
-  const diff = dead ? Math.round((new Date(dead)-new Date(now.substring(0,10)))/(1000*60*60*24)) : null;
-  const deadLbl = st==='splnene' ? <span style={{color:'#2A9D6F',fontWeight:600}}>✓ Splnené</span>
+  const deadRef2 = t.taskType==='range'&&t.deadTo?t.deadTo.substring(0,10):dead;
+  const diff = deadRef2 ? Math.round((new Date(deadRef2)-new Date(now.substring(0,10)))/(1000*60*60*24)) : null;
+  const deadLbl = t.taskType==='permanent' ? <span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála úloha</span>
+    : st==='splnene' ? <span style={{color:'#2A9D6F',fontWeight:600}}>✓ Splnené</span>
+    : t.taskType==='range'&&t.deadTo ? <span style={{color:'#4A5278'}}>📅 {dead} – {t.deadTo.substring(0,10)}</span>
     : diff===null ? null : diff<0 ? <span style={{color:'#DC2626',fontWeight:600}}>⚠ Po termíne o {Math.abs(diff)} dní!</span>
     : diff===0 ? <span style={{color:'#DC2626',fontWeight:600}}>⚠ Dnes končí!</span>
-    : diff<=5 ? <span style={{color:'#D97706',fontWeight:600}}>O {diff} dní ({dead})</span>
-    : <span style={{color:'#8892B0'}}>Do {dead}</span>;
+    : diff<=5 ? <span style={{color:'#D97706',fontWeight:600}}>O {diff} dní ({deadRef2})</span>
+    : <span style={{color:'#8892B0'}}>Do {deadRef2}</span>;
 
   return <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',borderLeft:`5px solid ${borderCol}`,padding:15,boxShadow:'0 1px 4px rgba(30,75,143,.06)'}}>
     <div style={{fontSize:11,fontWeight:600,color:'#8892B0',marginBottom:5}}>{t.no}{meetName?' · '+meetName:''}</div>
