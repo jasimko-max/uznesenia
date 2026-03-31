@@ -171,6 +171,55 @@ function Avatar({uid, users, size=28}) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
 }
 
+function MemberList({members, comp, users}) {
+  const [open, setOpen] = useState(false);
+  const SHOW = 3;
+  const extra = members.length - SHOW;
+  const doneC = members.filter(id => comp[id]?.done).length;
+  if (members.length <= 1) return null;
+  return (
+    <div style={{position:'relative',display:'inline-block'}}
+      onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
+      <div style={{display:'flex',alignItems:'center',gap:4,cursor:'default'}}>
+        <div style={{display:'flex'}}>
+          {members.slice(0,SHOW).map((id,i)=>(
+            <div key={id} style={{marginLeft:i>0?-7:0,zIndex:SHOW-i,position:'relative',
+              borderRadius:'50%',border:`2px solid ${comp[id]?.done?'#2A9D6F':'#fff'}`}}>
+              <Avatar uid={id} users={users} size={22}/>
+            </div>
+          ))}
+          {extra>0 && <div style={{marginLeft:-7,width:22,height:22,borderRadius:'50%',
+            background:'#E2E6F0',border:'2px solid #fff',display:'flex',alignItems:'center',
+            justifyContent:'center',fontSize:9,fontWeight:700,color:'#4A5278'}}>
+            +{extra}
+          </div>}
+        </div>
+        <span style={{fontSize:11,color:'#8892B0'}}>{doneC}/{members.length}</span>
+      </div>
+      {open && <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:400,
+        background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',
+        boxShadow:'0 8px 24px rgba(30,75,143,.15)',padding:'5px 0',minWidth:200,
+        maxHeight:320,overflowY:'auto'}}>
+        <div style={{position:'absolute',top:-5,left:10,width:10,height:10,background:'#fff',
+          border:'1px solid #E2E6F0',borderBottom:'none',borderRight:'none',transform:'rotate(45deg)'}}/>
+        {members.map(id=>{
+          const c=comp[id]; const u=users.find(x=>x.id===id);
+          return <div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px',
+            fontSize:12,background:c?.done?'#F0FDF4':'transparent'}}>
+            <Avatar uid={id} users={users} size={20}/>
+            <span style={{flex:1,fontWeight:500}}>{u?.name||id}</span>
+            {c?.done ? <span style={{color:'#2A9D6F',fontWeight:700}}>✓</span>
+                     : <span style={{color:'#C0C8D8'}}>—</span>}
+          </div>;
+        })}
+        <div style={{borderTop:'1px solid #F0F4FA',padding:'5px 12px 3px',fontSize:11,color:'#8892B0'}}>
+          {doneC} z {members.length} splnilo
+        </div>
+      </div>}
+    </div>
+  );
+}
+
 function Toast({msg, type, onClose}) {
   useEffect(()=>{const t=setTimeout(onClose,3200);return()=>clearTimeout(t);},[]);
   const bg = type==='ok'?'#2A9D6F':type==='err'?'#DC2626':'#1E4B8F';
@@ -227,7 +276,7 @@ function RespSelector({value, onChange, users, groups}) {
 
   return <div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:12}}>
     <div style={{display:'flex',gap:6,marginBottom:10}}>
-      {['group','persons'].map(m=><button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px 8px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
+      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px 8px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
         {m==='group'?'👥 Skupina':'👤 Konkrétne osoby'}
       </button>)}
     </div>
@@ -449,16 +498,9 @@ function Tasks({data, onSave, onDelete, onRemind, toast}) {
               </td>
               <td style={{padding:'10px 15px',fontSize:12}}>{respLabel(t.respType,t.respVal,users,groups)}</td>
               <td style={{padding:'10px 15px'}}>
-                {members.length>1 ? <div style={{minWidth:140}}>
-                  {members.map(id=>{
-                    const c=comp[id]; const u=users.find(x=>x.id===id);
-                    return <div key={id} style={{display:'flex',alignItems:'center',gap:6,padding:'3px 0',borderBottom:'0.5px solid #F0F4FA',fontSize:11}}>
-                      <Avatar uid={id} users={users} size={18}/>
-                      <span style={{flex:1}}>{u?.name.split(' ').pop()||id}</span>
-                      {c?.done ? <span style={{color:'#2A9D6F'}}>✓</span> : <span style={{color:'#8892B0'}}>—</span>}
-                    </div>;
-                  })}
-                </div> : <Badge status={st}/>}
+                {members.length>1
+                  ? <MemberList members={members} comp={comp} users={users}/>
+                  : <Badge status={st}/>}
               </td>
               <td style={{padding:'10px 15px',fontSize:12,color:'#4A5278'}}>{t.cat}</td>
               <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{t.taskType==='permanent'?<span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála</span>:t.taskType==='range'&&t.deadTo?fmt(t.dead)+' – '+fmt(t.deadTo):fmt(t.dead)}</td>
@@ -478,7 +520,7 @@ function Tasks({data, onSave, onDelete, onRemind, toast}) {
       </table>
     </div>
 
-    {modal!==null && <TaskModal task={modal} data={data} onSave={async(d)=>{await onSave(d);setModal(null);toast('Uložené.','ok');}} onClose={()=>setModal(null)}/>}
+    {modal!==null && modal!==undefined && <TaskModal task={modal} data={data} onSave={async(d)=>{await onSave(d);setModal(null);toast('Uložené.','ok');}} onClose={()=>setModal(null)}/>}
   </div>;
 }
 
@@ -525,7 +567,7 @@ function TaskModal({task, data, onSave, onClose}) {
     </Row2>
     <Field label="Typ termínu">
       <div style={{display:'flex',gap:6}}>
-        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
+        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button type="button" key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
       </div>
     </Field>
     {taskType==='normal' && <Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
@@ -864,10 +906,8 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
                 <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
               </div>;})] : null,
             ['C/ Aktivity', (()=>{
-              const sorted = (pm.activities||[])
-                .filter(a=>a.status==='approved'||a.status==='pending')
-                .sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
-              if(!sorted.length) return [];
+              const sorted = (pm.activities||[]).filter(a=>a.status==='approved'||a.status==='pending').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
+              if (!sorted.length) return [];
               return sorted.map(a=>{
                 const isPending = a.status==='pending';
                 return <div key={a.id} style={{padding:'8px 10px',borderBottom:'1px solid #F0F4FA',fontSize:13,
