@@ -322,7 +322,7 @@ function RespSelector({value, onChange, users, groups}) {
 // ═══════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════
-function Login({users, config, onLogin}) {
+function Login({users, config, onLogin, dataLoading}) {
   const [uid, setUid] = useState('');
   const [pwd, setPwd] = useState('');
   const [err, setErr] = useState('');
@@ -330,6 +330,7 @@ function Login({users, config, onLogin}) {
   const handle = () => {
     if (!uid) { setErr('Vyberte meno.'); return; }
     if (pwd !== PASSWORD) { setErr('Nesprávne heslo.'); return; }
+    if (dataLoading) { setErr('Počkajte, kým sa načítajú dáta…'); return; }
     onLogin(uid);
   };
 
@@ -359,6 +360,11 @@ function Login({users, config, onLogin}) {
       <button onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:'pointer'}}>
         Prihlásiť sa →
       </button>
+      {dataLoading && <div style={{marginTop:14,display:'flex',alignItems:'center',gap:8,justifyContent:'center',fontSize:12,color:'#8892B0'}}>
+        <div style={{width:14,height:14,border:'2px solid #E2E6F0',borderTopColor:'#1E4B8F',borderRadius:'50%',animation:'spin .7s linear infinite',flexShrink:0}}/>
+        Načítavam dáta zo Sheets…
+      </div>}
+      {!dataLoading && users.length>0 && <div style={{marginTop:10,fontSize:12,color:'#2A9D6F',textAlign:'center'}}>✓ Dáta načítané ({users.length} zamestnancov)</div>}
     </div>
   </div>;
 }
@@ -745,23 +751,28 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
         </SectionCard>
       </div>
       <div>
-        <SectionCard title="C/ Aktivity a podujatia" count={approvedActs.length} extra={pendActs.length>0&&<span style={{color:'#D97706',fontSize:11,marginLeft:6}}>, {pendActs.length} čaká</span>} onAdd={()=>setActModal(true)}>
-          {isDir && pendActs.length>0 && <div style={{marginBottom:12}}>
-            <div style={{fontSize:12,fontWeight:700,color:'#D97706',marginBottom:7}}>🕐 Čakajú na schválenie:</div>
-            {pendActs.map(a=><div key={a.id} style={{background:'#fff',border:'1px solid #E2E6F0',borderLeft:'4px solid #D97706',borderRadius:9,padding:'11px 14px',marginBottom:8}}>
-              <div style={{fontSize:13,fontWeight:600}}>{a.name}</div>
-              <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{a.dateType==='range'&&a.dateTo?fmt(a.date)+' – '+fmt(a.dateTo):a.date?fmt(a.date):'celý mesiac'} · {a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
-              <div style={{display:'flex',gap:7,marginTop:8}}>
-                <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓ Schváliť</Btn>
-                <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕ Zamietnuť</Btn>
+        <SectionCard title="C/ Aktivity a podujatia" count={(pm.activities||[]).length} extra={pendActs.length>0&&<span style={{color:'#D97706',fontSize:11,marginLeft:6}}>{pendActs.length} čaká na schv.</span>} onAdd={()=>setActModal(true)}>
+          {!(pm.activities||[]).length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
+          {(pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
+            const isPending = a.status==='pending';
+            const dateStr = a.dateType==='range'&&a.dateTo?fmtS(a.date)+' – '+fmtS(a.dateTo):a.date?fmtS(a.date):'celý mesiac';
+            return <div key={a.id} style={{padding:'9px 0',borderBottom:'1px solid #F0F4FA'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
+                    <strong style={{fontSize:13}}>{a.name}</strong>
+                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 7px',borderRadius:20}}>čaká na schválenie</span>}
+                  </div>
+                  <div style={{fontSize:12,color:'#8892B0'}}>{dateStr} · {a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+                </div>
+                {isDir && <div style={{display:'flex',gap:5,flexShrink:0}}>
+                  {isPending && <><Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓</Btn>
+                  <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕</Btn></>}
+                  <Btn size="sm" onClick={()=>onDeleteAct(a.id,month)}>🗑</Btn>
+                </div>}
               </div>
-            </div>)}
-          </div>}
-          {!approvedActs.length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
-          {approvedActs.map(a=><PRow key={a.id} date={a.dateType==='range'&&a.dateTo?fmtS(a.date)+' – '+fmtS(a.dateTo):a.date?fmtS(a.date):'celý mesiac'} onDel={()=>onDeleteAct(a.id,month)}>
-            <strong>{a.name}</strong>
-            <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
-          </PRow>)}
+            </div>;
+          })}
         </SectionCard>
         <SectionCard title="D/ Úlohy z porád" count={monthTasks.length}>
           {!monthTasks.length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy.</div>}
@@ -913,9 +924,17 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
                 <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:tc,border:'1px solid '+bc,flexShrink:0}}>{m.type}</span>
                 <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
               </div>;})],
-            ['C/ Aktivity', (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=><div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{a.date?fmtS(a.date):'(mesiac '+mlabel(a.month||mk)+')'}</span>
-              <strong>{a.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{a.cls}</div></div>)],
+            ['C/ Aktivity', (pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
+              const isPend = a.status==='pending';
+              return <div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                  <span style={{fontWeight:600,color:'#1E4B8F',flexShrink:0,fontSize:12}}>{a.date?fmtS(a.date):'celý mesiac'}</span>
+                  {isPend && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 6px',borderRadius:20,flexShrink:0}}>čaká</span>}
+                  <strong style={{fontSize:13}}>{a.name}</strong>
+                </div>
+                <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+              </div>;
+            })],
           ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
             <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
             <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
@@ -1056,6 +1075,7 @@ function RemindModal({task, data, onClose}) {
 function App() {
   const [status, setStatus] = useState('loading'); // loading | login | app
   const [data, setData] = useState(null);
+  const [dataLoading, setDataLoading] = useState(true);
   const [curUser, setCurUser] = useState(null);
   const [view, setView] = useState('dashboard');
   const [toastMsg, setToastMsg] = useState(null);
@@ -1065,15 +1085,19 @@ function App() {
   const toast = (msg, type='inf') => setToastMsg({msg, type});
 
   useEffect(()=>{
+    // Show login form immediately with empty data, load real data in background
+    const empty = {config:{sy:'2025/2026',school:'ZŠ s MŠ, Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}};
+    setData(empty);
+    setStatus('login');
+    // Load real data in background — update UI when ready
     (async()=>{
       try {
         const d = await apiGet('init');
         setData(d);
-        setStatus('login');
+        setDataLoading(false);
       } catch(e) {
-        setToastMsg({msg:'Chyba pripojenia: '+e.message, type:'err'});
-        setTimeout(()=>setStatus('login'), 2000);
-        setData({config:{sy:'2025/2026'},users:[],groups:[],meetings:[],tasks:[],plans:{}});
+        setDataLoading(false);
+        setToastMsg({msg:'⚠ Dáta sa nepodarilo načítať: '+e.message, type:'err'});
       }
     })();
   },[]);
@@ -1156,21 +1180,10 @@ function App() {
     setData(d=>({...d,groups:d.groups.map(x=>x.id===g.id?g:x)}));
   };
 
-  if (status==='loading') return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
-      <div style={{background:'#fff',borderRadius:20,padding:40,textAlign:'center',boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
-        <div style={{width:50,height:50,borderRadius:13,overflow:'hidden',border:'2px solid #E2E6F0',margin:'0 auto 16px'}}>
-          <img src="logo.png" style={{width:'100%',height:'100%',objectFit:'contain'}} alt="" onError={e=>e.target.style.display='none'}/>
-        </div>
-        <div style={{fontSize:16,fontWeight:700,marginBottom:16}}>Školský manažér</div>
-        <Spinner/>
-        <div style={{fontSize:13,color:'#8892B0',marginTop:12}}>Pripájam sa k databáze…</div>
-      </div>
-    </div>
-  );
+  // status 'loading' is no longer used - login shows immediately
 
   if (status==='login' || !curUser) return <>
-    {data && <Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin}/>}
+    {data && <Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin} dataLoading={dataLoading}/>}
     {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
   </>;
 
@@ -1215,7 +1228,7 @@ function App() {
     </div>
 
     {remindTask && <RemindModal task={remindTask} data={data} onClose={()=>setRemindTask(null)}/>}
-    {actModal && <ActModal month={Object.keys(data.plans)[0]||PLAN_MONTHS[0]} data={data} curUser={curUser} onSave={async(d)=>{await saveActivity(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
+    {actModal && <ActModal month={defaultPlanMonth()} data={data} curUser={curUser} onSave={async(d)=>{await saveActivity(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
     {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
   </>;
 }
