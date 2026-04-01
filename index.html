@@ -171,51 +171,60 @@ function Avatar({uid, users, size=28}) {
   return <div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
 }
 
+
 function MemberList({members, comp, users}) {
-  const [open, setOpen] = useState(false);
-  const SHOW = 3;
+  const [open, setOpen] = React.useState(false);
+  const SHOW = 1;
   const extra = members.length - SHOW;
-  const doneC = members.filter(id => comp[id]?.done).length;
+  const doneC = members.filter(id => (comp[id]||{}).done).length;
   if (members.length <= 1) return null;
+  const first = members[0];
+  const firstUser = users.find(x=>x.id===first)||{};
+  const firstName = (firstUser.name||first).split(' ').pop();
   return (
-    <div style={{position:'relative',display:'inline-block'}}
-      onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
-      <div style={{display:'flex',alignItems:'center',gap:4,cursor:'default'}}>
-        <div style={{display:'flex'}}>
-          {members.slice(0,SHOW).map((id,i)=>(
-            <div key={id} style={{marginLeft:i>0?-7:0,zIndex:SHOW-i,position:'relative',
-              borderRadius:'50%',border:`2px solid ${comp[id]?.done?'#2A9D6F':'#fff'}`}}>
-              <Avatar uid={id} users={users} size={22}/>
-            </div>
-          ))}
-          {extra>0 && <div style={{marginLeft:-7,width:22,height:22,borderRadius:'50%',
-            background:'#E2E6F0',border:'2px solid #fff',display:'flex',alignItems:'center',
-            justifyContent:'center',fontSize:9,fontWeight:700,color:'#4A5278'}}>
-            +{extra}
-          </div>}
-        </div>
-        <span style={{fontSize:11,color:'#8892B0'}}>{doneC}/{members.length}</span>
+    <div style={{position:'relative', display:'inline-block'}}
+      onMouseEnter={()=>setOpen(true)}
+      onMouseLeave={()=>setOpen(false)}>
+      {/* Kompaktný riadok - vždy viditeľný */}
+      <div style={{display:'flex',alignItems:'center',gap:6,cursor:'default',padding:'2px 0'}}>
+        <Avatar uid={first} users={users} size={22}/>
+        <span style={{fontSize:12,fontWeight:500,color:'#1a1f36'}}>{firstName}</span>
+        {extra>0 && <span style={{fontSize:11,fontWeight:700,color:'#4A5278',background:'#E2E6F0',
+          borderRadius:10,padding:'1px 7px',whiteSpace:'nowrap'}}>+{extra}</span>}
+        <span style={{fontSize:11,color:'#8892B0',marginLeft:2}}>{doneC}/{members.length}</span>
       </div>
-      {open && <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,zIndex:400,
-        background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',
-        boxShadow:'0 8px 24px rgba(30,75,143,.15)',padding:'5px 0',minWidth:200,
-        maxHeight:320,overflowY:'auto'}}>
-        <div style={{position:'absolute',top:-5,left:10,width:10,height:10,background:'#fff',
-          border:'1px solid #E2E6F0',borderBottom:'none',borderRight:'none',transform:'rotate(45deg)'}}/>
-        {members.map(id=>{
-          const c=comp[id]; const u=users.find(x=>x.id===id);
-          return <div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 12px',
-            fontSize:12,background:c?.done?'#F0FDF4':'transparent'}}>
-            <Avatar uid={id} users={users} size={20}/>
-            <span style={{flex:1,fontWeight:500}}>{u?.name||id}</span>
-            {c?.done ? <span style={{color:'#2A9D6F',fontWeight:700}}>✓</span>
-                     : <span style={{color:'#C0C8D8'}}>—</span>}
-          </div>;
-        })}
-        <div style={{borderTop:'1px solid #F0F4FA',padding:'5px 12px 3px',fontSize:11,color:'#8892B0'}}>
-          {doneC} z {members.length} splnilo
+      {/* Rozbalený dropdown pri hover */}
+      {open && (
+        <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:500,
+          background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',
+          boxShadow:'0 8px 28px rgba(30,75,143,.18)',
+          minWidth:210,maxHeight:300,overflowY:'auto',
+          animation:'fadeIn .12s ease both'}}>
+          <div style={{position:'absolute',top:-5,left:12,width:10,height:10,
+            background:'#fff',border:'1px solid #E2E6F0',
+            borderBottom:'none',borderRight:'none',transform:'rotate(45deg)'}}/>
+          {members.map(id=>{
+            const c2=comp[id]||{}; const u=users.find(x=>x.id===id)||{};
+            const nm=(u.name||id).split(' ').pop();
+            return (
+              <div key={id} style={{display:'flex',alignItems:'center',gap:8,
+                padding:'6px 12px',fontSize:12,
+                borderBottom:'1px solid #F8FAFD',
+                background:c2.done?'#F0FDF4':'#fff'}}>
+                <Avatar uid={id} users={users} size={20}/>
+                <span style={{flex:1,fontWeight:500,color:'#1a1f36'}}>{nm}</span>
+                {c2.done
+                  ? <span style={{color:'#2A9D6F',fontWeight:700,fontSize:13}}>✓</span>
+                  : <span style={{color:'#C0C8D8',fontSize:13}}>—</span>}
+              </div>
+            );
+          })}
+          <div style={{padding:'6px 12px 5px',fontSize:11,color:'#8892B0',
+            borderTop:'1px solid #F0F4FA',background:'#FAFBFF'}}>
+            {doneC} z {members.length} splnilo
+          </div>
         </div>
-      </div>}
+      )}
     </div>
   );
 }
@@ -276,7 +285,7 @@ function RespSelector({value, onChange, users, groups}) {
 
   return <div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:12}}>
     <div style={{display:'flex',gap:6,marginBottom:10}}>
-      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px 8px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
+      {['group','persons'].map(m=><button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px 8px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
         {m==='group'?'👥 Skupina':'👤 Konkrétne osoby'}
       </button>)}
     </div>
@@ -520,7 +529,7 @@ function Tasks({data, onSave, onDelete, onRemind, toast}) {
       </table>
     </div>
 
-    {modal!==null && modal!==undefined && <TaskModal task={modal} data={data} onSave={async(d)=>{await onSave(d);setModal(null);toast('Uložené.','ok');}} onClose={()=>setModal(null)}/>}
+    {modal!==null && <TaskModal task={modal} data={data} onSave={async(d)=>{await onSave(d);setModal(null);toast('Uložené.','ok');}} onClose={()=>setModal(null)}/>}
   </div>;
 }
 
@@ -567,7 +576,7 @@ function TaskModal({task, data, onSave, onClose}) {
     </Row2>
     <Field label="Typ termínu">
       <div style={{display:'flex',gap:6}}>
-        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button type="button" key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
+        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
       </div>
     </Field>
     {taskType==='normal' && <Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
@@ -893,42 +902,21 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
             </button>;
           })}
         </div>
-        {!pm.published && (pm.activities||[]).filter(a=>a.status==='pending').length===0 && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
-        {!pm.published && (pm.activities||[]).filter(a=>a.status==='pending').length>0 && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave. Nižšie sú aktivity čakajúce na schválenie riaditeľom.</div>}
+        {!pm.published && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           {[
-            pm.published ? ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)] : null,
-            pm.published ? ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
+            ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)],
+            ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
               const bc=MEET_BORDER[m.type]||'#E2E6F0'; const tc=MEET_TEXT[m.type]||'#1E4B8F';
               return <div key={m.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13,display:'flex',alignItems:'flex-start',gap:8}}>
                 <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:tc,border:'1px solid '+bc,flexShrink:0}}>{m.type}</span>
                 <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
-              </div>;})] : null,
-            ['C/ Aktivity', (()=>{
-              const sorted = (pm.activities||[]).filter(a=>a.status==='approved'||a.status==='pending').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
-              if (!sorted.length) return [];
-              return sorted.map(a=>{
-                const isPending = a.status==='pending';
-                return <div key={a.id} style={{padding:'8px 10px',borderBottom:'1px solid #F0F4FA',fontSize:13,
-                  background:isPending?'#FFFBEB':'transparent',
-                  borderLeft:isPending?'3px solid #F59E0B':'3px solid transparent',
-                  borderRadius:isPending?5:0,marginBottom:isPending?3:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                    <span style={{fontWeight:600,color:isPending?'#B45309':'#1E4B8F',fontSize:12}}>
-                      {a.date?fmtS(a.date):a.actMonth?'📅 '+mlabel(a.actMonth):'('+mlabel(a.month||mk)+')'}
-                    </span>
-                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#B45309',
-                      padding:'1px 7px',borderRadius:10,border:'1px solid #FDE68A',whiteSpace:'nowrap'}}>
-                      🕐 čaká na schválenie
-                    </span>}
-                  </div>
-                  <strong style={{color:isPending?'#92400E':'#1a1f36'}}>{a.name}</strong>
-                  {a.cls&&a.cls!=='—'&&<div style={{fontSize:11,color:'#8892B0',marginTop:1}}>{a.cls}</div>}
-                </div>;
-              });
-            })()],
-          ].filter(Boolean).map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
+              </div>;})],
+            ['C/ Aktivity', (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=><div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
+              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{a.date?fmtS(a.date):'(mesiac '+mlabel(a.month||mk)+')'}</span>
+              <strong>{a.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{a.cls}</div></div>)],
+          ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
             <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
             <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
           </div>)}
