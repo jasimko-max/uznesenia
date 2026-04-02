@@ -11,65 +11,65 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:#F0F4FA;color:#1a1f36;font-size:14px;line-height:1.5;min-height:100vh}
-:root{
-  --blue:#1E4B8F;--blue-l:#EEF3FC;--blue-d:#163d76;
-  --green:#2A9D6F;--green-l:#E6F5EE;
-  --red:#DC2626;--red-l:#FEF2F2;
-  --amber:#D97706;--amber-l:#FFFBEB;
-  --purple:#7C3AED;--purple-l:#F5F3FF;
-  --bd:#E2E6F0;--tx2:#4A5278;--tx3:#8892B0;
-  --r:10px;--sh:0 1px 4px rgba(30,75,143,.08);
-}
+:root{--blue:#1E4B8F;--green:#2A9D6F;--red:#DC2626;--bd:#E2E6F0;--r:10px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .animate{animation:fadeIn .2s ease both}
-.spinner{width:30px;height:30px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
-input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:9px 12px;border:1.5px solid var(--bd);border-radius:var(--r);color:#1a1f36;background:#F8FAFD;outline:none;transition:border .15s}
-input:focus,select:focus,textarea:focus{border-color:var(--blue);background:#fff}
+.spinner{width:30px;height:30px;border:3px solid #E2E6F0;border-top-color:#1E4B8F;border-radius:50%;animation:spin .7s linear infinite}
+input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:9px 12px;border:1.5px solid #E2E6F0;border-radius:10px;color:#1a1f36;background:#F8FAFD;outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:#1E4B8F;background:#fff}
 button{font-family:inherit;cursor:pointer;transition:all .15s}
-@media print{
-  .no-print{display:none!important}
-  body{background:#fff}
-  .print-area{box-shadow:none!important;border:none!important}
-}
+@media print{.no-print{display:none!important}body{background:#fff}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback} = React;
+const {useState,useEffect,useRef,useMemo} = React;
 
 // ═══ CONFIG ═══
-const GAS = 'https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec';
-const PASSWORD = '1379';
-const MONTHS = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
-const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
-const AV_COLORS = {blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
-const MEET_COLORS = {PR:'#FEF2F2',PP:'#EEF3FC',MZ:'#FFF7ED',PK:'#F5F3FF',VED:'#F0FDF4',RR:'#FDF2F8'};
-const MEET_TEXT  = {PR:'#DC2626',PP:'#1E4B8F',MZ:'#C2410C',PK:'#6D28D9',VED:'#15803D',RR:'#9D174D'};
-const MEET_NAMES = {PR:'Pedagogická rada',PP:'Pracovná porada',MZ:'Metodické združenie',PK:'Predmetová komisia',VED:'Vedenie školy',RR:'Rodičovská rada'};
+const GAS='https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec';
+const PASSWORD='1379';
+const MONTHS=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
+const SY_OPTIONS=['2024/2025','2025/2026','2026/2027','2027/2028'];
+const AV_COLORS={blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
+const MEET_BG={PR:'#FEF2F2',PP:'#EEF3FC',MZ:'#FFF7ED',PK:'#F5F3FF',VED:'#F0FDF4',RR:'#FDF2F8'};
+const MEET_FG={PR:'#DC2626',PP:'#1E4B8F',MZ:'#C2410C',PK:'#6D28D9',VED:'#15803D',RR:'#9D174D'};
+const MEET_NAMES={PR:'Pedagogická rada',PP:'Pracovná porada',MZ:'Metodické združenie',PK:'Predmetová komisia',VED:'Vedenie školy',RR:'Rodičovská rada'};
 
-// ═══ API ═══
+// Dynamické PLAN_MONTHS podľa školského roka
+function getPlanMonths(sy){
+  const yr=parseInt((sy||'2025/2026').split('/')[0]);
+  return [`${yr}-09`,`${yr}-10`,`${yr}-11`,`${yr}-12`,`${yr+1}-01`,`${yr+1}-02`,`${yr+1}-03`,`${yr+1}-04`,`${yr+1}-05`,`${yr+1}-06`];
+}
+// Aktuálny mesiac z PLAN_MONTHS
+function currentPlanMonth(sy){
+  const months=getPlanMonths(sy);
+  const now=new Date().toISOString().substring(0,7);
+  return months.find(m=>m===now)||months[0];
+}
+
+// ═══ API – optimistické ukladanie ═══
 async function apiGet(action=''){
-  const r = await fetch(GAS+(action?'?action='+action:''));
-  const j = await r.json();
+  const r=await fetch(GAS+(action?'?action='+action:''));
+  const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
+// Fire-and-forget – UI sa aktualizuje okamžite, API beží na pozadí
 async function apiPost(action,payload={}){
-  const r = await fetch(GAS,{method:'POST',body:JSON.stringify({action,...payload})});
-  const j = await r.json();
+  const r=await fetch(GAS,{method:'POST',body:JSON.stringify({action,...payload})});
+  const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.result;
 }
 
 // ═══ HELPERS ═══
 function uid(){return 'x'+Date.now()+Math.random().toString(36).slice(2,6)}
-function mlabel(k){if(!k)return'';const[y,m]=k.split('-');return(MONTHS[parseInt(m)-1]||'')+ ' '+y}
+function mlabel(k){if(!k)return'';const[y,m]=k.split('-');return(MONTHS[parseInt(m)-1]||'')+' '+y}
 function fmt(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'numeric',year:'numeric'})}
 function fmtS(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'long'})}
-function pct(a,b){return b?Math.round(a/b*100):0}
 function getMembers(type,val,groups){
   if(!type||type==='single') return [val].filter(Boolean);
   if(type==='group'){const g=groups.find(x=>x.id===val);return g&&g.memberIds?g.memberIds.split(',').filter(Boolean):[];}
@@ -89,27 +89,33 @@ function taskStatus(t,groups){
   const done=members.filter(id=>comp[id]?.done).length;
   if(done===members.length) return 'splnene';
   if(done>0) return 'ciastocne';
+  if(t.taskType==='permanent'||t.taskType==='month') return 'otvorene';
   const now=new Date().toISOString().split('T')[0];
   const dead=t.taskType==='range'?(t.deadTo||''):(t.dead||'');
   if(dead&&dead.substring(0,10)<now) return 'po-termine';
   return 'otvorene';
+}
+function deadLabel(t,month){
+  if(t.taskType==='permanent') return '🔁 Stála úloha';
+  if(t.taskType==='month') return '📅 '+mlabel(t.deadMonth||month||'');
+  if(t.taskType==='range'&&t.dead&&t.deadTo) return fmt(t.dead)+' – '+fmt(t.deadTo);
+  return t.dead?fmt(t.dead):'—';
 }
 
 // ═══ UI ATOMS ═══
 function Spinner(){return<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
 
 function Btn({children,onClick,variant='outline',size='md',disabled,style={}}){
-  const base={display:'inline-flex',alignItems:'center',gap:5,borderRadius:9,fontFamily:'inherit',fontWeight:600,cursor:disabled?'not-allowed':'pointer',opacity:disabled?.55:1,border:'1.5px solid transparent',...style};
-  const sz=size==='sm'?{padding:'4px 11px',fontSize:12}:{padding:'8px 16px',fontSize:13};
-  const vars={
-    primary:{background:'#1E4B8F',color:'#fff',borderColor:'#1E4B8F'},
+  const base={display:'inline-flex',alignItems:'center',gap:5,borderRadius:9,fontFamily:'inherit',fontWeight:600,
+    cursor:disabled?'not-allowed':'pointer',opacity:disabled?.5:1,border:'1.5px solid transparent',...style};
+  const sz=size==='sm'?{padding:'4px 10px',fontSize:12}:{padding:'8px 16px',fontSize:13};
+  const vars={primary:{background:'#1E4B8F',color:'#fff',borderColor:'#1E4B8F'},
     green:{background:'#2A9D6F',color:'#fff',borderColor:'#2A9D6F'},
     red:{background:'#FEF2F2',color:'#DC2626',borderColor:'#FECACA'},
     outline:{background:'#fff',color:'#4A5278',borderColor:'#E2E6F0'},
-    ghost:{background:'transparent',color:'#4A5278',borderColor:'transparent'},
     amber:{background:'#FFFBEB',color:'#B45309',borderColor:'#FDE68A'},
-  };
-  return<button type="button" style={{...base,...sz,...vars[variant]||vars.outline}} onClick={disabled?undefined:onClick}>{children}</button>;
+    ghost:{background:'transparent',color:'#4A5278',borderColor:'transparent'}};
+  return<button type="button" style={{...base,...sz,...(vars[variant]||vars.outline)}} onClick={disabled?undefined:onClick}>{children}</button>;
 }
 
 function Badge({st}){
@@ -121,7 +127,8 @@ function Badge({st}){
 
 function Avatar({uid,users,size=28}){
   const u=users.find(x=>x.id===uid)||{ini:'?',avColor:'blue'};
-  return<div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
+  return<div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',
+    display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
 }
 
 function MemberPill({members,comp,users}){
@@ -130,66 +137,65 @@ function MemberPill({members,comp,users}){
   if(!members.length) return null;
   if(members.length===1){
     const u=users.find(x=>x.id===members[0])||{};
-    return<div style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><Avatar uid={members[0]} users={users} size={20}/><span>{(u.name||members[0]).split(' ').pop()}</span></div>;
+    return<span style={{fontSize:12,display:'flex',alignItems:'center',gap:5}}><Avatar uid={members[0]} users={users} size={18}/>{(u.name||members[0]).split(' ').pop()}</span>;
   }
   const first=users.find(x=>x.id===members[0])||{};
-  return(
-    <div style={{position:'relative',display:'inline-block'}} onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
-      <div style={{display:'flex',alignItems:'center',gap:6,cursor:'default'}}>
-        <Avatar uid={members[0]} users={users} size={20}/>
-        <span style={{fontSize:12,fontWeight:500}}>{(first.name||members[0]).split(' ').pop()}</span>
-        <span style={{fontSize:11,background:'#E2E6F0',borderRadius:10,padding:'1px 6px',color:'#4A5278',fontWeight:700}}>+{members.length-1}</span>
-        <span style={{fontSize:11,color:'#8892B0'}}>{done}/{members.length}</span>
-      </div>
-      {open&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:500,background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',boxShadow:'0 8px 28px rgba(30,75,143,.18)',minWidth:210,maxHeight:280,overflowY:'auto'}}>
-        {members.map(id=>{const c2=comp[id]||{};const u=users.find(x=>x.id===id)||{};
-          return<div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',fontSize:12,background:c2.done?'#F0FDF4':'#fff',borderBottom:'1px solid #F8FAFD'}}>
-            <Avatar uid={id} users={users} size={18}/>
-            <span style={{flex:1}}>{(u.name||id).split(' ').pop()}</span>
-            {c2.done?<span style={{color:'#2A9D6F',fontWeight:700}}>✓</span>:<span style={{color:'#C0C8D8'}}>—</span>}
-          </div>;})}
-        <div style={{padding:'5px 12px',fontSize:11,color:'#8892B0',borderTop:'1px solid #F0F4FA'}}>{done} z {members.length} splnilo</div>
-      </div>}
+  return<div style={{position:'relative',display:'inline-block'}} onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
+    <div style={{display:'flex',alignItems:'center',gap:5,cursor:'default'}}>
+      <Avatar uid={members[0]} users={users} size={18}/>
+      <span style={{fontSize:12}}>{(first.name||members[0]).split(' ').pop()}</span>
+      <span style={{fontSize:11,background:'#E2E6F0',borderRadius:10,padding:'1px 6px',color:'#4A5278',fontWeight:700}}>+{members.length-1}</span>
+      <span style={{fontSize:11,color:'#8892B0'}}>{done}/{members.length}</span>
     </div>
-  );
+    {open&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:500,background:'#fff',borderRadius:10,
+      border:'1px solid #E2E6F0',boxShadow:'0 8px 28px rgba(30,75,143,.18)',minWidth:200,maxHeight:260,overflowY:'auto'}}>
+      {members.map(id=>{const c2=comp[id]||{};const u=users.find(x=>x.id===id)||{};
+        return<div key={id} style={{display:'flex',alignItems:'center',gap:7,padding:'5px 12px',fontSize:12,
+          background:c2.done?'#F0FDF4':'#fff',borderBottom:'1px solid #F8FAFD'}}>
+          <Avatar uid={id} users={users} size={17}/>
+          <span style={{flex:1}}>{(u.name||id).split(' ').pop()}</span>
+          {c2.done?<span style={{color:'#2A9D6F',fontWeight:700}}>✓</span>:<span style={{color:'#C0C8D8'}}>—</span>}
+        </div>;})}
+      <div style={{padding:'5px 12px',fontSize:11,color:'#8892B0',borderTop:'1px solid #F0F4FA'}}>{done} z {members.length} splnilo</div>
+    </div>}
+  </div>;
 }
 
 function Modal({title,onClose,children,footer,maxWidth=560}){
   return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.42)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-    <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 64px rgba(0,0,0,.2)',animation:'fadeIn .18s ease both'}}>
-      <div style={{padding:'16px 22px 13px',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+    <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 64px rgba(0,0,0,.2)',animation:'fadeIn .15s ease both'}}>
+      <div style={{padding:'15px 22px 12px',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{fontSize:16,fontWeight:700}}>{title}</div>
         <button type="button" onClick={onClose} style={{width:26,height:26,borderRadius:'50%',border:'none',background:'#F0F4FA',cursor:'pointer',fontSize:14,color:'#4A5278'}}>✕</button>
       </div>
-      <div style={{padding:'18px 22px'}}>{children}</div>
-      {footer&&<div style={{padding:'13px 22px',borderTop:'1px solid #E2E6F0',display:'flex',justifyContent:'flex-end',gap:8}}>{footer}</div>}
+      <div style={{padding:'16px 22px'}}>{children}</div>
+      {footer&&<div style={{padding:'12px 22px',borderTop:'1px solid #E2E6F0',display:'flex',justifyContent:'flex-end',gap:8}}>{footer}</div>}
     </div>
   </div>;
 }
 
-function Field({label,hint,children}){
-  return<div style={{marginBottom:13}}>
-    <label style={{fontSize:12,fontWeight:600,color:'#4A5278',marginBottom:5,display:'block',letterSpacing:'.03em'}}>{label}</label>
+function Field({label,children,hint}){
+  return<div style={{marginBottom:12}}>
+    <label style={{fontSize:12,fontWeight:600,color:'#4A5278',marginBottom:5,display:'block'}}>{label}</label>
     {hint&&<div style={{fontSize:11,color:'#8892B0',marginBottom:5}}>{hint}</div>}
     {children}
   </div>;
 }
-
 function Row2({children}){return<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>{children}</div>}
 
 function Toast({msg,type,onClose}){
-  useEffect(()=>{const t=setTimeout(onClose,3200);return()=>clearTimeout(t)},[]);
+  useEffect(()=>{const t=setTimeout(onClose,3000);return()=>clearTimeout(t)},[]);
   const bg=type==='ok'?'#2A9D6F':type==='err'?'#DC2626':'#1E4B8F';
-  return<div style={{position:'fixed',bottom:22,right:22,background:bg,color:'#fff',padding:'11px 18px',borderRadius:10,fontSize:13,fontWeight:500,boxShadow:'0 4px 20px rgba(0,0,0,.2)',zIndex:999,animation:'toastIn .3s ease both'}}>{msg}</div>;
+  return<div style={{position:'fixed',bottom:22,right:22,background:bg,color:'#fff',padding:'11px 18px',borderRadius:10,fontSize:13,fontWeight:500,boxShadow:'0 4px 20px rgba(0,0,0,.2)',zIndex:999,animation:'toastIn .25s ease both'}}>{msg}</div>;
 }
 
 function SectionCard({title,icon,children,action}){
-  return<div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',marginBottom:14,overflow:'hidden'}}>
-    <div style={{padding:'11px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <div style={{fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:7}}>{icon&&<span>{icon}</span>}{title}</div>
+  return<div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',marginBottom:13,overflow:'hidden'}}>
+    <div style={{padding:'10px 16px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{fontSize:13,fontWeight:700}}>{icon} {title}</div>
       {action}
     </div>
-    <div style={{padding:'14px 18px'}}>{children}</div>
+    <div style={{padding:'12px 16px'}}>{children}</div>
   </div>;
 }
 
@@ -204,36 +210,62 @@ function RespSelector({value,onChange,users,groups}){
   );
   useEffect(()=>{
     if(mode==='group') onChange({type:'group',val:selGroup});
-    else{
-      if(selPersons.length===1) onChange({type:'single',val:selPersons[0]});
-      else onChange({type:'persons',val:selPersons.join(',')});
-    }
+    else{if(selPersons.length===1) onChange({type:'single',val:selPersons[0]});
+      else onChange({type:'persons',val:selPersons.join(',')});}
   },[mode,selGroup,selPersons]);
-  const toggleP=id=>setSelPersons(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const preview=mode==='group'?(groups.find(g=>g.id===selGroup)?.name||'—'):
     selPersons.map(id=>users.find(u=>u.id===id)?.name?.split(' ').pop()||id).join(', ')||'—';
-  return<div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:11}}>
-    <div style={{display:'flex',gap:6,marginBottom:9}}>
-      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'6px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
+  return<div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:10}}>
+    <div style={{display:'flex',gap:6,marginBottom:8}}>
+      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'5px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
         {m==='group'?'👥 Skupina':'👤 Osoby'}
       </button>)}
     </div>
     {mode==='group'?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
-      {groups.map(g=>{const on=g.id===selGroup;return<div key={g.id} onClick={()=>setSelGroup(g.id)} style={{border:'1.5px solid',borderColor:on?'#1E4B8F':'#E2E6F0',background:on?'#EEF3FC':'#fff',borderRadius:8,padding:'7px 10px',cursor:'pointer'}}>
+      {groups.map(g=>{const on=g.id===selGroup;return<div key={g.id} onClick={()=>setSelGroup(g.id)}
+        style={{border:'1.5px solid',borderColor:on?'#1E4B8F':'#E2E6F0',background:on?'#EEF3FC':'#fff',borderRadius:8,padding:'6px 9px',cursor:'pointer'}}>
         <div style={{fontSize:12,fontWeight:600,color:on?'#1E4B8F':'#1a1f36'}}>{g.name}</div>
-        <div style={{fontSize:11,color:'#8892B0'}}>{(g.memberIds||'').split(',').filter(Boolean).length} členov</div>
+        <div style={{fontSize:11,color:'#8892B0'}}>{(g.memberIds||'').split(',').filter(Boolean).length} čl.</div>
       </div>;})}
-    </div>:<div style={{maxHeight:180,overflowY:'auto'}}>
-      {nonDir.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
-        <input type="checkbox" checked={on} onChange={()=>toggleP(u.id)} style={{width:14,height:14,accentColor:'#1E4B8F',flexShrink:0}}/>
-        <Avatar uid={u.id} users={users} size={20}/>
+    </div>:<div style={{maxHeight:170,overflowY:'auto'}}>
+      {nonDir.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
+        <input type="checkbox" checked={on} onChange={()=>setSelPersons(p=>p.includes(u.id)?p.filter(x=>x!==u.id):[...p,u.id])} style={{width:14,height:14,accentColor:'#1E4B8F',flexShrink:0}}/>
+        <Avatar uid={u.id} users={users} size={18}/>
         <span style={{fontSize:12,flex:1}}>{u.name}</span>
       </label>;})}
     </div>}
-    <div style={{marginTop:9,padding:'6px 10px',background:'#fff',borderRadius:7,border:'1px solid #E2E6F0',fontSize:12,color:'#4A5278'}}>
+    <div style={{marginTop:8,padding:'5px 9px',background:'#fff',borderRadius:7,border:'1px solid #E2E6F0',fontSize:12,color:'#4A5278'}}>
       <strong style={{color:'#1E4B8F'}}>Zodpovedný/í: </strong>{preview}
     </div>
   </div>;
+}
+
+// ═══ DATE TYPE SELECTOR – 4 typy (vrátane "Daný mesiac") ═══
+function DateTypeSelector({taskType,setTaskType,dead,setDead,deadTo,setDeadTo,deadMonth,setDeadMonth,planMonths,currentMonth}){
+  const types=[['normal','📅 Dátum'],['range','📆 Rozsah'],['month','🗓 Mesiac'],['permanent','🔁 Stála']];
+  return<>
+    <Field label="Typ termínu">
+      <div style={{display:'flex',gap:5}}>
+        {types.map(([k,l])=><button type="button" key={k} onClick={()=>setTaskType(k)}
+          style={{flex:1,padding:'6px 3px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',
+            borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',
+            color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
+      </div>
+    </Field>
+    {taskType==='normal'&&<Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
+    {taskType==='range'&&<Row2>
+      <Field label="Od"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>
+      <Field label="Do"><input type="date" value={deadTo} onChange={e=>setDeadTo(e.target.value)}/></Field>
+    </Row2>}
+    {taskType==='month'&&<Field label="Mesiac">
+      <select value={deadMonth||currentMonth} onChange={e=>setDeadMonth(e.target.value)}>
+        {(planMonths||[]).map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
+      </select>
+    </Field>}
+    {taskType==='permanent'&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F',marginBottom:12}}>
+      🔁 Stála úloha – bez konkrétneho termínu, platí trvalo.
+    </div>}
+  </>;
 }
 
 // ═══ LOGIN ═══
@@ -275,48 +307,73 @@ function Login({users,config,onLogin}){
   </div>;
 }
 
+// ═══ NASTAVENIA MODÁL ═══
+function SettingsModal({config,onSave,onClose}){
+  const [sy,setSy]=useState(config.sy||'2025/2026');
+  const [school,setSchool]=useState(config.school||'');
+  const [dir,setDir]=useState(config.dir||'');
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{setSaving(true);await onSave({sy,school,dir});setSaving(false);onClose();};
+  return<Modal title="⚙ Nastavenia" onClose={onClose} maxWidth={440}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
+    <Field label="Školský rok">
+      <select value={sy} onChange={e=>setSy(e.target.value)}>
+        {SY_OPTIONS.map(y=><option key={y}>{y}</option>)}
+      </select>
+    </Field>
+    <Field label="Názov školy"><input value={school} onChange={e=>setSchool(e.target.value)} placeholder="ZŠ s MŠ, Višňové 446"/></Field>
+    <Field label="Meno riaditeľa/ky"><input value={dir} onChange={e=>setDir(e.target.value)} placeholder="Mgr. Meno Priezvisko"/></Field>
+  </Modal>;
+}
+
 // ═══════════════════════════════════════════
 // SEKCIA 1: PLÁN NA MESIAC
 // ═══════════════════════════════════════════
-function PlanView({data,curUser,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,toast}){
+function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,toast}){
   const {plans,meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
-  const [month,setMonth]=useState(PLAN_MONTHS[0]);
-  const [actModal,setActModal]=useState(false);
+  const planMonths=getPlanMonths(config.sy);
+  const [month,setMonth]=useState(()=>currentPlanMonth(config.sy));
+  const [actModal,setActModal]=useState(null); // null | {} | {existing}
   const [dayModal,setDayModal]=useState(false);
   const [taskModal,setTaskModal]=useState(null);
-  const [showPrint,setShowPrint]=useState(false);
+  const [meetModal,setMeetModal]=useState(false);
+  const [editMeetModal,setEditMeetModal]=useState(null);
 
   const pm=plans[month]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>(m.date||'').startsWith(month)).sort((a,b)=>a.date>b.date?1:-1);
-  const monthTasks=tasks.filter(t=>{const m=meetings.find(x=>x.id===t.mid);return m&&(m.date||'').startsWith(month);});
+  // Úlohy: z porád v danom mesiaci + priame úlohy plánu (mid='plan-MESIAC')
+  const monthTasks=tasks.filter(t=>{
+    if(t.mid==='plan-'+month) return true;
+    const m=meetings.find(x=>x.id===t.mid);
+    return m&&(m.date||'').startsWith(month);
+  });
   const approved=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
   const pending=(pm.activities||[]).filter(a=>a.status==='pending');
   const days=(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1);
 
+  // ─── TLAČ ───
   const printPlan=()=>{
     const w=window.open('','_blank');
-    const schoolName=config.school||'ZŠ s MŠ, Višňové 446';
-    const dir=config.dir||'Riaditeľ';
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plán ${mlabel(month)}</title>
-    <style>body{font-family:Arial,sans-serif;margin:30px;font-size:12pt;color:#000}
-    h1{font-size:16pt;text-align:center;margin-bottom:4px}h2{font-size:13pt;margin:18px 0 6px;border-bottom:1.5px solid #000;padding-bottom:3px}
-    h3{font-size:12pt;text-align:center;color:#555;margin-bottom:20px}
-    table{width:100%;border-collapse:collapse;margin-bottom:10px}
-    th,td{border:1px solid #ccc;padding:6px 9px;text-align:left;font-size:11pt}
-    th{background:#eee;font-weight:bold}.sig{margin-top:50px;display:flex;justify-content:flex-end}
-    .no-data{color:#999;font-style:italic}</style></head><body>
+    <style>body{font-family:Arial,sans-serif;margin:35px;font-size:12pt}
+    h1{font-size:15pt;text-align:center;margin-bottom:3px}
+    h3{font-size:11pt;text-align:center;color:#555;margin-bottom:18px}
+    h2{font-size:12pt;margin:16px 0 5px;border-bottom:1px solid #000;padding-bottom:2px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}
+    .empty{color:#999;font-style:italic}.sig{margin-top:50px;text-align:right}</style></head><body>
     <h1>Plán práce na ${mlabel(month)}</h1>
-    <h3>${schoolName} · Školský rok ${config.sy||'2025/2026'}</h3>
-    <h2>A/ Štátne sviatky a pamätné dni</h2>
-    ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><strong>${d.name}</strong></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · Školský rok ${config.sy||'2025/2026'}</h3>
+    <h2>A/ Štátne sviatky, dni pracovného pokoja, pamätné dni</h2>
+    ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><b>${d.name}</b></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
-    ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><strong>${m.name}</strong></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>C/ Aktivity &amp; podujatia</h2>
-    ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${a.date?fmtS(a.date):'—'}</td><td><strong>${a.name}</strong></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${a.date?fmtS(a.date):'—'}</td><td><b>${a.name}</b></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>D/ Úlohy</h2>
-    ${monthTasks.length?`<table><tr><th>Č.</th><th>Úloha</th><th>Zodpovedný/á</th><th>Termín</th></tr>${monthTasks.map(t=>`<tr><td>${t.no}</td><td>${t.txt}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${t.dead?fmt(t.dead):(t.taskType==='permanent'?'Stála':'—')}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne úlohy.</p>'}
-    <div class="sig"><div><br/><br/>________________________________<br/>${dir}<br/>riaditeľ/ka školy</div></div>
+    ${monthTasks.length?`<table><tr><th>Č.</th><th>Úloha</th><th>Zodpovedný/á</th><th>Termín</th></tr>${monthTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,month)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne úlohy.</p>'}
+    <div class="sig"><br/><br/>________________________________<br/>riaditeľ školy</div>
     </body></html>`;
     w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
   };
@@ -324,189 +381,318 @@ function PlanView({data,curUser,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onD
   return<div className="animate">
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
       <div style={{fontSize:18,fontWeight:700}}>📅 Plán práce na mesiac</div>
-      <div style={{display:'flex',gap:8}} className="no-print">
+      <div style={{display:'flex',gap:7}} className="no-print">
         <Btn size="sm" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>
-        {isDir&&<Btn size="sm" onClick={()=>setDayModal(true)}>+ Sviatok / deň</Btn>}
-        <Btn size="sm" variant="green" onClick={()=>setActModal(true)}>📬 Pridať aktivitu</Btn>
+        {isDir&&<><Btn size="sm" onClick={()=>setDayModal(true)}>+ Sviatok</Btn>
+          <Btn size="sm" onClick={()=>setMeetModal(true)}>+ Porada</Btn>
+          <Btn size="sm" variant="primary" onClick={()=>setTaskModal({})}>+ Úloha</Btn></>}
+        <Btn size="sm" variant="green" onClick={()=>setActModal({})}>📬 Aktivita</Btn>
       </div>
     </div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:14}}>Školský rok {config.sy}</div>
+    <div style={{fontSize:13,color:'#8892B0',marginBottom:13}}>Školský rok {config.sy}</div>
 
     {/* Mesiac selector */}
-    <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
-      {PLAN_MONTHS.map(k=>{
+    <div style={{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}}>
+      {planMonths.map(k=>{
         const hasPub=plans[k]?.published,on=month===k;
-        return<button type="button" key={k} onClick={()=>setMonth(k)} style={{padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
+        return<button type="button" key={k} onClick={()=>setMonth(k)} style={{padding:'5px 12px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',
+          borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',
+          color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
           {MONTHS[parseInt(k.split('-')[1])-1].substring(0,3)}
         </button>;
       })}
     </div>
 
     {/* Status bar */}
-    <div style={{marginBottom:16,padding:'10px 16px',borderRadius:10,border:'1px solid',borderColor:pm.published?'#BBF7D0':'#FDE68A',background:pm.published?'#F0FDF4':'#FFFBEB',display:'flex',alignItems:'center',gap:10,fontSize:13}}>
-      {pm.published?<><span>✅</span><strong>Plán {mlabel(month)} je zverejnený</strong></>:<><span>📝</span><strong>Plán {mlabel(month)} je v príprave</strong></>}
-      {isDir&&<div style={{marginLeft:'auto',display:'flex',gap:8}}>
+    <div style={{marginBottom:14,padding:'9px 15px',borderRadius:10,border:'1px solid',
+      borderColor:pm.published?'#BBF7D0':'#FDE68A',background:pm.published?'#F0FDF4':'#FFFBEB',
+      display:'flex',alignItems:'center',gap:10,fontSize:13}}>
+      {pm.published?<><span>✅</span><strong>Plán {mlabel(month)} je zverejnený</strong></>
+        :<><span>📝</span><strong>Plán {mlabel(month)} je v príprave</strong></>}
+      {isDir&&<div style={{marginLeft:'auto',display:'flex',gap:7}}>
         {pm.published
-          ?<Btn size="sm" onClick={()=>onPublish(month,false)}>Zrušiť zverejnenie</Btn>
-          :<Btn size="sm" variant="primary" onClick={()=>onPublish(month,true)}>📢 Zverejniť plán</Btn>}
+          ?<Btn size="sm" onClick={()=>onPublish(month,false)}>Zrušiť</Btn>
+          :<Btn size="sm" variant="primary" onClick={()=>onPublish(month,true)}>📢 Zverejniť</Btn>}
       </div>}
     </div>
 
-    {/* Pending schválenie pre riaditeľa */}
-    {isDir&&pending.length>0&&<div style={{marginBottom:14,background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,padding:14}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#B45309',marginBottom:9}}>🕐 Aktivity čakajúce na schválenie ({pending.length})</div>
-      {pending.map(a=><div key={a.id} style={{background:'#fff',border:'1px solid #E2E6F0',borderRadius:9,padding:'10px 14px',marginBottom:8}}>
+    {/* Pending schválenie – len pre riaditeľa */}
+    {isDir&&pending.length>0&&<div style={{marginBottom:13,background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,padding:13}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#B45309',marginBottom:8}}>🕐 Čakajú na schválenie ({pending.length})</div>
+      {pending.map(a=><div key={a.id} style={{background:'#fff',border:'1px solid #E2E6F0',borderRadius:9,padding:'10px 13px',marginBottom:7}}>
         <div style={{fontSize:13,fontWeight:600}}>{a.name}</div>
         <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls||'—'} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
-        {a.note&&<div style={{fontSize:12,color:'#4A5278',marginBottom:7}}>💬 {a.note}</div>}
-        <div style={{display:'flex',gap:7}}>
+        {a.note&&<div style={{fontSize:12,color:'#4A5278',marginBottom:6}}>💬 {a.note}</div>}
+        <div style={{display:'flex',gap:6}}>
           <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓ Schváliť</Btn>
           <Btn size="sm" variant="red" onClick={()=>onApproveAct(a.id,month,false)}>✕ Zamietnuť</Btn>
         </div>
       </div>)}
     </div>}
 
-    {/* Hlavné 4 sekcie plánu */}
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+    {/* 4 sekcie */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
       <div>
-        <SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓" action={isDir&&<Btn size="sm" onClick={()=>setDayModal(true)}>+</Btn>}>
+        <SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓"
+          action={isDir&&<Btn size="sm" onClick={()=>setDayModal(true)}>+</Btn>}>
           {!days.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne.</div>}
-          {days.map(d=><div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:90,fontSize:12}}>{fmtS(d.date)}</div>
+          {days.map(d=><div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(d.date)}</div>
             <div style={{flex:1}}><strong>{d.name}</strong>{d.note&&<div style={{fontSize:11,color:'#8892B0'}}>{d.note}</div>}</div>
             {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteDay(d.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
           </div>)}
         </SectionCard>
 
-        <SectionCard title="B/ Porady a zasadnutia" icon="📋">
-          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady v tomto mesiaci.</div>}
-          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:MEET_TEXT[m.type]||'#1E4B8F',minWidth:90,fontSize:12}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
+        <SectionCard title="B/ Porady a zasadnutia" icon="📋"
+          action={isDir&&<Btn size="sm" onClick={()=>setMeetModal(true)}>+</Btn>}>
+          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady tento mesiac.</div>}
+          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:MEET_FG[m.type]||'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
             <div style={{flex:1}}>
-              <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F',marginRight:6}}>{m.type}</span>
+              <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
               <strong>{m.name}</strong>
               {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>{m.place}</div>}
             </div>
+            {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px'}}>✎</Btn>}
           </div>)}
         </SectionCard>
       </div>
       <div>
-        <SectionCard title="C/ Aktivity a podujatia" icon="🎯" action={<Btn size="sm" variant="green" onClick={()=>setActModal(true)}>+ Pridať</Btn>}>
-          {!approved.length&&pending.length===0&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
-          {!isDir&&pending.map(a=><div key={a.id} style={{padding:'7px 10px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <span style={{fontSize:11,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 7px',borderRadius:10,border:'1px solid #FDE68A'}}>🕐 čaká</span>
-              <strong style={{color:'#92400E'}}>{a.name}</strong>
-            </div>
-            <div style={{fontSize:11,color:'#B45309',marginTop:2}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls}</div>
+        <SectionCard title="C/ Aktivity a podujatia" icon="🎯"
+          action={<Btn size="sm" variant="green" onClick={()=>setActModal({})}>+</Btn>}>
+          {!approved.length&&!pending.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
+          {/* Pending pre ne-riaditeľa */}
+          {!isDir&&pending.map(a=><div key={a.id} style={{padding:'6px 9px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
+            <span style={{fontSize:10,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 6px',borderRadius:9,border:'1px solid #FDE68A'}}>🕐 čaká</span>
+            <strong style={{color:'#92400E',marginLeft:5}}>{a.name}</strong>
+            <div style={{fontSize:11,color:'#B45309'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls}</div>
           </div>)}
-          {approved.map(a=><div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:90,fontSize:12}}>{a.date?fmtS(a.date):'—'}</div>
+          {approved.map(a=><div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{a.date?fmtS(a.date):'—'}</div>
             <div style={{flex:1}}><strong>{a.name}</strong><div style={{fontSize:11,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div></div>
-            {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
+            {isDir&&<div style={{display:'flex',gap:4}}>
+              <Btn size="sm" onClick={()=>setActModal(a)} style={{padding:'2px 7px'}}>✎</Btn>
+              <Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>
+            </div>}
           </div>)}
         </SectionCard>
 
-        <SectionCard title="D/ Úlohy" icon="✅">
-          {!monthTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy v tomto mesiaci.</div>}
-          {monthTasks.map(t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
-            <span style={{color:'#8892B0',fontWeight:600,minWidth:55,fontSize:11}}>{t.no}</span>
-            <span style={{flex:1}}>{t.txt}</span>
-            <Badge st={st}/>
-          </div>;})}
+        <SectionCard title="D/ Úlohy" icon="✅"
+          action={isDir&&<Btn size="sm" variant="primary" onClick={()=>setTaskModal({})}>+</Btn>}>
+          {!monthTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy.</div>}
+          {monthTasks.map(t=>{
+            const st=taskStatus(t,groups);
+            const members=getMembers(t.respType,t.respVal,groups);
+            const comp=t.completions||{};
+            const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
+            return<div key={t.id} style={{padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:7}}>
+                <div style={{flex:1}}>
+                  {t.no&&<div style={{fontSize:10,fontWeight:700,color:'#8892B0',marginBottom:1}}>{t.no}</div>}
+                  <div style={{fontWeight:600,marginBottom:2}}>{t.txt}</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap',color:'#4A5278',fontSize:11}}>
+                    <span>👤 {respLabel(t.respType,t.respVal,users,groups)}</span>
+                    <span>📅 {deadLabel(t,month)}</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:4,flexShrink:0}}>
+                  <Badge st={st}/>
+                  {isMyTask&&<Btn size="sm" variant="green" onClick={()=>{/* DoneModal inline */}} style={{padding:'2px 7px'}}>✓</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)} style={{padding:'2px 7px'}}>✎</Btn>}
+                  {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)} style={{padding:'2px 6px'}}>✕</Btn>}
+                </div>
+              </div>
+              {members.length>1&&<div style={{marginTop:4}}><MemberPill members={members} comp={comp} users={users}/></div>}
+            </div>;
+          })}
         </SectionCard>
       </div>
     </div>
 
-    {actModal&&<ActModal month={month} data={data} curUser={curUser}
-      onSave={async d=>{await onSaveAct(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie 📬','ok');}}
-      onClose={()=>setActModal(false)}/>}
-    {dayModal&&<DayModal month={month} onSave={async d=>{await onSaveDay(d);setDayModal(false);toast('Deň uložený.','ok');}} onClose={()=>setDayModal(false)}/>}
+    {/* Modály */}
+    {actModal!==null&&<ActModal existing={actModal?.id?actModal:null} month={month} data={data} curUser={curUser} planMonths={planMonths}
+      onSave={async d=>{await onSaveAct(d);setActModal(null);toast(curUser.role==='r'?'Aktivita uložená.':'Odoslaná na schválenie 📬','ok');}}
+      onClose={()=>setActModal(null)}/>}
+    {dayModal&&<DayModal month={month} planMonths={planMonths} onSave={async d=>{await onSaveDay(d);setDayModal(false);toast('Uložené.','ok');}} onClose={()=>setDayModal(false)}/>}
+    {taskModal!==null&&<PlanTaskModal task={taskModal} month={month} data={data} planMonths={planMonths}
+      onSave={async d=>{await onSaveTask(d);setTaskModal(null);toast('Úloha uložená.','ok');}}
+      onClose={()=>setTaskModal(null)}/>}
+    {meetModal&&<MeetModal data={data} planMonths={planMonths} defaultMonth={month}
+      onSave={async d=>{await onSaveMeet(d);setMeetModal(false);toast('Porada pridaná.','ok');}}
+      onClose={()=>setMeetModal(false)}/>}
+    {editMeetModal&&<MeetModal existing={editMeetModal} data={data} planMonths={planMonths} defaultMonth={month}
+      onSave={async d=>{await onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
+      onClose={()=>setEditMeetModal(null)}/>}
   </div>;
 }
 
-function ActModal({month,data,curUser,onSave,onClose}){
+// Priamy TaskModal pre plán (bez väzby na poradu)
+function PlanTaskModal({task,month,data,planMonths,onSave,onClose}){
   const {users,groups}=data;
-  const [name,setName]=useState('');
-  const [date,setDate]=useState('');
-  const [cls,setCls]=useState('');
-  const [note,setNote]=useState('');
-  const [selMonth,setSelMonth]=useState(month);
-  const [resp,setResp]=useState({type:'single',val:curUser.id});
+  const isNew=!task.id;
+  const [txt,setTxt]=useState(task.txt||'');
+  const [cat,setCat]=useState(task.cat||'Pedagogika');
+  const [taskType,setTaskType]=useState(task.taskType||'month');
+  const [dead,setDead]=useState((task.dead||'').substring(0,10));
+  const [deadTo,setDeadTo]=useState((task.deadTo||'').substring(0,10));
+  const [deadMonth,setDeadMonth]=useState(task.deadMonth||month);
+  const [note,setNote]=useState(task.note||'');
+  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!txt.trim()) return;
+    setSaving(true);
+    const cnt=data.tasks.filter(t=>t.mid==='plan-'+month).length+(isNew?1:0);
+    await onSave({id:task.id||uid(),mid:'plan-'+month,no:task.no||'P-'+cnt,
+      txt:txt.trim(),cat,taskType,dead:taskType==='permanent'||taskType==='month'?'':dead,
+      deadTo:taskType==='range'?deadTo:'',deadMonth:taskType==='month'?deadMonth:'',
+      note,respType:resp.type,respVal:resp.val,completions:task.completions||{}});
+    setSaving(false);
+  };
+  return<Modal title={isNew?'Nová úloha do plánu':'Upraviť úlohu'} onClose={onClose}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť úlohu'}</Btn></>}>
+    <Field label="Text úlohy"><textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder="Popis úlohy…" style={{resize:'vertical'}}/></Field>
+    <Field label="Kategória"><select value={cat} onChange={e=>setCat(e.target.value)}>
+      {['Pedagogika','Prevádzka','Administratíva','Ostatné'].map(c=><option key={c}>{c}</option>)}
+    </select></Field>
+    <DateTypeSelector taskType={taskType} setTaskType={setTaskType} dead={dead} setDead={setDead}
+      deadTo={deadTo} setDeadTo={setDeadTo} deadMonth={deadMonth} setDeadMonth={setDeadMonth}
+      planMonths={planMonths} currentMonth={month}/>
+    <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
+    <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}} placeholder="Voliteľné…"/></Field>
+  </Modal>;
+}
+
+function ActModal({existing,month,data,curUser,planMonths,onSave,onClose}){
+  const {users,groups}=data;
+  const isEdit=!!existing?.id;
+  const [name,setName]=useState(existing?.name||'');
+  const [date,setDate]=useState(existing?.date||'');
+  const [cls,setCls]=useState(existing?.cls||'');
+  const [note,setNote]=useState(existing?.note||'');
+  const [selMonth,setSelMonth]=useState(existing?.month||month);
+  const [resp,setResp]=useState({type:existing?.respType||'single',val:existing?.respVal||curUser.id});
   const [saving,setSaving]=useState(false);
   const save=async()=>{
     if(!name) return;
     setSaving(true);
-    await onSave({id:'a'+uid(),date,name,cls:cls||'—',respType:resp.type,respVal:resp.val,note,status:curUser.role==='r'?'approved':'pending',month:selMonth});
+    await onSave({id:existing?.id||'a'+uid(),date,name,cls:cls||'—',respType:resp.type,respVal:resp.val,
+      note,status:isEdit?(existing?.status||'approved'):(curUser.role==='r'?'approved':'pending'),month:selMonth});
     setSaving(false);
   };
-  return<Modal title="Pridať aktivitu do plánu" onClose={onClose} footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Odosielam…':'Odoslať'}</Btn></>}>
-    <Field label="Názov aktivity / podujatia"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Bratislava"/></Field>
+  return<Modal title={isEdit?'Upraviť aktivitu':'Pridať aktivitu'} onClose={onClose}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Ukladám…':isEdit?'Uložiť':'Odoslať'}</Btn></>}>
+    <Field label="Názov aktivity"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Bratislava"/></Field>
     <Row2>
       <Field label="Dátum (ak je známy)"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
     </Row2>
-    <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
+    <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>
+      {planMonths.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
+    </select></Field>
     <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
     <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}}/></Field>
-    {curUser.role!=='r'&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F'}}>ℹ️ Aktivita bude odoslaná riaditeľovi na schválenie.</div>}
+    {curUser.role!=='r'&&!isEdit&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F'}}>ℹ️ Aktivita bude odoslaná riaditeľovi na schválenie.</div>}
   </Modal>;
 }
 
-function DayModal({month,onSave,onClose}){
+function DayModal({month,planMonths,onSave,onClose}){
   const [date,setDate]=useState('');
   const [name,setName]=useState('');
   const [note,setNote]=useState('');
   const [selMonth,setSelMonth]=useState(month);
   const [saving,setSaving]=useState(false);
   const save=async()=>{if(!date||!name)return;setSaving(true);await onSave({id:'d'+uid(),date,name,note,month:selMonth});setSaving(false);};
-  return<Modal title="Štátny sviatok / pamätný deň" onClose={onClose} maxWidth={440} footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>Uložiť</Btn></>}>
+  return<Modal title="Sviatok / pamätný deň" onClose={onClose} maxWidth={440}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>Uložiť</Btn></>}>
     <Row2>
       <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
-      <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
+      <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{planMonths.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
     </Row2>
     <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Deň Zeme"/></Field>
-    <Field label="Poznámka / výchovné využitie"><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Napr. Výchovne využiť na hodinách OV…"/></Field>
+    <Field label="Poznámka"><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Napr. Výchovne využiť na hodinách OV…"/></Field>
+  </Modal>;
+}
+
+// MeetModal – používa sa v pláne aj v sekciách PP/PR
+function MeetModal({existing,type,data,planMonths,defaultMonth,onSave,onClose}){
+  const allTypes=Object.keys(MEET_NAMES);
+  const [selType,setSelType]=useState(existing?.type||type||'PP');
+  const [name,setName]=useState(existing?.name||'');
+  const [date,setDate]=useState(existing?.date||'');
+  const [time,setTime]=useState(existing?.time||'13:30');
+  const [place,setPlace]=useState(existing?.place||'zborovňa');
+  const [program,setProgram]=useState(existing?.program||'');
+  const [saving,setSaving]=useState(false);
+  const isNew=!existing?.id;
+  useEffect(()=>{
+    if(isNew){
+      const cnt=data.meetings.filter(m=>m.type===selType).length+1;
+      const yr=(data.config.sy||'2025/2026').split('/')[0];
+      setName(`${MEET_NAMES[selType]} ${cnt}/${yr}`);
+    }
+  },[selType]);
+  const save=async()=>{if(!name||!date)return;setSaving(true);
+    await onSave({id:existing?.id||uid(),name,date,type:selType,time,place,program});setSaving(false);};
+  return<Modal title={isNew?'Nová porada / zasadnutie':'Upraviť poradu'} onClose={onClose} maxWidth={480}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
+    {isNew&&<Field label="Typ">
+      <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:2}}>
+        {allTypes.map(t=><button type="button" key={t} onClick={()=>setSelType(t)} style={{padding:'4px 10px',borderRadius:7,fontSize:12,fontWeight:600,border:'1.5px solid',
+          borderColor:selType===t?(MEET_FG[t]||'#1E4B8F'):'#E2E6F0',background:selType===t?(MEET_BG[t]||'#EEF3FC'):'#fff',
+          color:selType===t?(MEET_FG[t]||'#1E4B8F'):'#4A5278',cursor:'pointer'}}>
+          {t} – {MEET_NAMES[t]}
+        </button>)}
+      </div>
+    </Field>}
+    <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Row2>
+      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
+    </Row2>
+    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
   </Modal>;
 }
 
 // ═══════════════════════════════════════════
-// SEKCIA 2 & 3: PORADA VIEW (PP + PR)
+// SEKCIA 2 & 3: PORADA (PP + PR)
 // ═══════════════════════════════════════════
 function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMarkDone,toast}){
-  const {meetings,tasks,users,groups}=data;
+  const {meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
+  const planMonths=getPlanMonths(config.sy);
   const myMeetings=meetings.filter(m=>m.type===type).sort((a,b)=>b.date>a.date?1:-1);
   const [selId,setSelId]=useState(myMeetings[0]?.id||null);
   const [meetModal,setMeetModal]=useState(false);
+  const [editMeetModal,setEditMeetModal]=useState(null);
   const [taskModal,setTaskModal]=useState(null);
+  const [doneModal,setDoneModal]=useState(null);
 
   const sel=myMeetings.find(m=>m.id===selId)||myMeetings[0]||null;
   const myTasks=sel?tasks.filter(t=>t.mid===sel.id):[];
   const typeName=MEET_NAMES[type]||type;
-  const typeColor=MEET_TEXT[type]||'#1E4B8F';
-  const typeBg=MEET_COLORS[type]||'#EEF3FC';
 
   const printMeeting=()=>{
     if(!sel) return;
     const w=window.open('','_blank');
     const isPA=type==='PR';
     const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${typeName}</title>
-    <style>body{font-family:Arial,sans-serif;margin:30px;font-size:12pt}
-    h1{font-size:16pt;text-align:center;margin-bottom:4px}h2{font-size:13pt;margin:18px 0 6px;border-bottom:1.5px solid #000;padding-bottom:3px}
-    h3{font-size:12pt;text-align:center;color:#555;margin-bottom:20px}
-    table{width:100%;border-collapse:collapse;margin-bottom:10px}th,td{border:1px solid #ccc;padding:6px 9px;text-align:left;font-size:11pt}th{background:#eee}
-    ol{margin:0 0 0 18px;padding:0}li{margin-bottom:6px}.sig{margin-top:50px;display:flex;justify-content:space-between}
-    .no-data{color:#999;font-style:italic}</style></head><body>
-    <h1>${typeName}</h1><h3>${data.config.school||'ZŠ s MŠ, Višňové 446'} · ${fmt(sel.date)}${sel.time?' · '+sel.time:''}</h3>
-    <p><strong>Miesto:</strong> ${sel.place||'—'}</p>
+    <style>body{font-family:Arial,sans-serif;margin:35px;font-size:12pt}
+    h1{font-size:15pt;text-align:center;margin-bottom:3px}h3{font-size:11pt;text-align:center;color:#555;margin-bottom:18px}
+    h2{font-size:12pt;margin:16px 0 5px;border-bottom:1px solid #000;padding-bottom:2px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}
+    ol{margin:0 0 0 18px}li{margin-bottom:5px}.sig{margin-top:50px;display:flex;justify-content:space-between}
+    .empty{color:#999;font-style:italic}</style></head><body>
+    <h1>${typeName}</h1>
+    <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · ${fmt(sel.date)}${sel.time?' · '+sel.time:''}</h3>
+    <p><b>Miesto:</b> ${sel.place||'—'}</p>
     <h2>Program</h2>
-    ${sel.program?`<ol>${(sel.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="no-data">Bez programu.</p>'}
+    ${sel.program?`<ol>${(sel.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="empty">Bez programu.</p>'}
     <h2>${isPA?'Uznesenia':'Úlohy'}</h2>
-    ${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${t.dead?fmt(t.dead):(t.taskType==='permanent'?'Stála':'—')}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    ${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,'')}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <div class="sig">
       <div><br/><br/>________________________________<br/>Zapisovateľ/ka</div>
-      <div><br/><br/>________________________________<br/>${data.config.dir||'Riaditeľ'}<br/>riaditeľ/ka školy</div>
+      <div><br/><br/>________________________________<br/>riaditeľ školy</div>
     </div></body></html>`;
     w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
   };
@@ -514,12 +700,13 @@ function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMar
   return<div className="animate">
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
       <div style={{fontSize:18,fontWeight:700,display:'flex',alignItems:'center',gap:8}}>
-        <span style={{background:typeBg,color:typeColor,padding:'3px 10px',borderRadius:7,fontSize:14,fontWeight:700}}>{type}</span>
+        <span style={{background:MEET_BG[type]||'#EEF3FC',color:MEET_FG[type]||'#1E4B8F',padding:'3px 10px',borderRadius:7,fontSize:14,fontWeight:700}}>{type}</span>
         {typeName}
       </div>
-      <div style={{display:'flex',gap:8}}>
+      <div style={{display:'flex',gap:7}}>
         {sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
-        {isDir&&<Btn size="sm" variant="primary" onClick={()=>setMeetModal(true)}>+ Nová {typeName.split(' ')[0].toLowerCase()}</Btn>}
+        {isDir&&sel&&<Btn size="sm" onClick={()=>setEditMeetModal(sel)}>✎ Upraviť</Btn>}
+        {isDir&&<Btn size="sm" variant="primary" onClick={()=>setMeetModal(true)}>+ Nová</Btn>}
       </div>
     </div>
 
@@ -530,24 +717,28 @@ function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMar
     </div>}
 
     {myMeetings.length>0&&<div style={{display:'flex',gap:14}}>
-      {/* Zoznam porád */}
+      {/* Zoznam */}
       <div style={{width:240,flexShrink:0}}>
         <div style={{fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:8}}>Zoznam</div>
-        {myMeetings.map(m=><div key={m.id} onClick={()=>setSelId(m.id)}
-          style={{padding:'10px 13px',borderRadius:10,border:'1.5px solid',marginBottom:6,cursor:'pointer',
-            borderColor:selId===m.id?typeColor:'#E2E6F0',
-            background:selId===m.id?typeBg:'#fff',
-            transition:'all .15s'}}>
-          <div style={{fontSize:12,fontWeight:700,color:selId===m.id?typeColor:'#1a1f36'}}>{m.name}</div>
-          <div style={{fontSize:11,color:'#8892B0',marginTop:2}}>{fmt(m.date)}{m.time?' · '+m.time:''}</div>
-          <div style={{fontSize:11,color:'#8892B0'}}>{tasks.filter(t=>t.mid===m.id).length} {type==='PR'?'uznesení':'úloh'}</div>
-        </div>)}
+        {myMeetings.map(m=>{
+          const mTasks=tasks.filter(t=>t.mid===m.id);
+          const done=mTasks.filter(t=>taskStatus(t,groups)==='splnene').length;
+          const on=selId===m.id||(selId===null&&m.id===myMeetings[0]?.id);
+          return<div key={m.id} onClick={()=>setSelId(m.id)}
+            style={{padding:'10px 12px',borderRadius:10,border:'1.5px solid',marginBottom:6,cursor:'pointer',
+              borderColor:on?MEET_FG[type]||'#1E4B8F':'#E2E6F0',
+              background:on?MEET_BG[type]||'#EEF3FC':'#fff',transition:'all .15s'}}>
+            <div style={{fontSize:12,fontWeight:700,color:on?MEET_FG[type]||'#1E4B8F':'#1a1f36'}}>{m.name}</div>
+            <div style={{fontSize:11,color:'#8892B0',marginTop:2}}>{fmt(m.date)}{m.time?' · '+m.time:''}</div>
+            <div style={{fontSize:11,color:'#8892B0'}}>{done}/{mTasks.length} {type==='PR'?'uznesení':'úloh'} splnených</div>
+          </div>;
+        })}
       </div>
 
-      {/* Detail porady */}
+      {/* Detail */}
       {sel&&<div style={{flex:1}}>
-        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:20,marginBottom:14}}>
-          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:18,marginBottom:13}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
             <div>
               <div style={{fontSize:16,fontWeight:700}}>{sel.name}</div>
               <div style={{fontSize:13,color:'#8892B0',marginTop:3}}>
@@ -555,17 +746,13 @@ function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMar
               </div>
             </div>
           </div>
-
-          {/* Program */}
-          <div style={{marginTop:12}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:7,borderBottom:'1px solid #F0F4FA',paddingBottom:6}}>
-              Program {type==='PR'?'pedagogickej rady':'pracovnej porady'}
-            </div>
+          <div style={{marginTop:13,borderTop:'1px solid #F0F4FA',paddingTop:12}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Program {typeName.toLowerCase()}</div>
             {isDir
-              ?<ProgramEditor sel={sel} onSave={async prog=>{await onSaveMeet({...sel,program:prog});toast('Program uložený.','ok');}}/>
-              :<div style={{fontSize:13,lineHeight:1.8}}>
+              ?<ProgramEditor key={sel.id} sel={sel} onSave={async prog=>{await onSaveMeet({...sel,program:prog});toast('Program uložený.','ok');}}/>
+              :<div style={{fontSize:13,lineHeight:1.9}}>
                 {sel.program
-                  ?sel.program.split('\n').filter(Boolean).map((l,i)=><div key={i} style={{display:'flex',gap:8,padding:'4px 0',borderBottom:'1px solid #F8FAFD'}}>
+                  ?sel.program.split('\n').filter(Boolean).map((l,i)=><div key={i} style={{display:'flex',gap:8,padding:'3px 0',borderBottom:'1px solid #F8FAFD'}}>
                     <span style={{color:'#1E4B8F',fontWeight:700,minWidth:20}}>{i+1}.</span><span>{l}</span>
                   </div>)
                   :<span style={{color:'#8892B0',fontStyle:'italic'}}>Program ešte nie je zadaný.</span>}
@@ -573,28 +760,56 @@ function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMar
           </div>
         </div>
 
-        {/* Uznesenia / Úlohy */}
-        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:20}}>
+        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:18}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <div style={{fontSize:14,fontWeight:700}}>{type==='PR'?'Uznesenia':'Úlohy'} ({myTasks.length})</div>
-            {isDir&&<Btn size="sm" variant="primary" onClick={()=>setTaskModal({})}>+ Pridať {type==='PR'?'uznesenie':'úlohu'}</Btn>}
+            {isDir&&<Btn size="sm" variant="primary" onClick={()=>setTaskModal({})}>+ Pridať</Btn>}
           </div>
-          {!myTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13,textAlign:'center',padding:'20px 0'}}>
+          {!myTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13,textAlign:'center',padding:'16px 0'}}>
             Zatiaľ žiadne {type==='PR'?'uznesenia':'úlohy'}.
           </div>}
-          <TaskTable tasks={myTasks} users={users} groups={groups} curUser={curUser}
-            onEdit={isDir?t=>setTaskModal(t):null}
-            onDelete={isDir?id=>onDeleteTask(id):null}
-            onMarkDone={(id,uid2,note)=>onMarkDone(id,uid2,note)}
-            type={type} toast={toast}/>
+          {myTasks.map(t=>{
+            const st=taskStatus(t,groups);
+            const members=getMembers(t.respType,t.respVal,groups);
+            const comp=t.completions||{};
+            const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
+            return<div key={t.id} style={{borderBottom:'1px solid #F0F4FA',padding:'10px 0'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:9}}>
+                <div style={{flex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                    {t.no&&<span style={{fontSize:11,fontWeight:700,color:'#8892B0'}}>{t.no}</span>}
+                    <Badge st={st}/>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,marginBottom:3}}>{t.txt}</div>
+                  {t.note&&<div style={{fontSize:12,color:'#8892B0',marginBottom:3}}>💬 {t.note}</div>}
+                  <div style={{fontSize:12,color:'#4A5278'}}>
+                    👤 {respLabel(t.respType,t.respVal,users,groups)}
+                    {t.dead||t.taskType==='month'||t.taskType==='permanent'?<span style={{marginLeft:10}}>📅 {deadLabel(t,'')}</span>:null}
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:5,flexShrink:0}}>
+                  {isMyTask&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)}>✎</Btn>}
+                  {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)}>✕</Btn>}
+                </div>
+              </div>
+              {members.length>1&&<div style={{marginTop:6}}><MemberPill members={members} comp={comp} users={users}/></div>}
+            </div>;
+          })}
         </div>
       </div>}
     </div>}
 
-    {meetModal&&<MeetModal type={type} data={data} onSave={async d=>{await onSaveMeet(d);setMeetModal(false);setSelId(d.id);toast(`${typeName} pridaná.`,'ok');}} onClose={()=>setMeetModal(false)}/>}
-    {taskModal!==null&&<TaskModal task={taskModal} meetId={sel?.id} type={type} data={data}
+    {meetModal&&<MeetModal type={type} data={data} planMonths={getPlanMonths(config.sy)}
+      onSave={async d=>{await onSaveMeet(d);setMeetModal(false);setSelId(d.id);toast(`${typeName} pridaná.`,'ok');}}
+      onClose={()=>setMeetModal(false)}/>}
+    {editMeetModal&&<MeetModal existing={editMeetModal} type={type} data={data} planMonths={getPlanMonths(config.sy)}
+      onSave={async d=>{await onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
+      onClose={()=>setEditMeetModal(null)}/>}
+    {taskModal!==null&&<FullTaskModal task={taskModal} meetId={sel?.id} type={type} data={data} planMonths={getPlanMonths(config.sy)}
       onSave={async d=>{await onSaveTask(d);setTaskModal(null);toast('Uložené.','ok');}}
       onClose={()=>setTaskModal(null)}/>}
+    {doneModal&&<DoneModal task={doneModal} onSave={async note=>{await onMarkDone(doneModal.id,curUser.id,note);setDoneModal(null);toast('Splnené! 🎉','ok');}} onClose={()=>setDoneModal(null)}/>}
   </div>;
 }
 
@@ -612,133 +827,61 @@ function ProgramEditor({sel,onSave}){
   </div>;
 }
 
-function TaskTable({tasks,users,groups,curUser,onEdit,onDelete,onMarkDone,type,toast}){
-  const [confirm2,setConfirm2]=useState(null);
-  const [doneModal,setDoneModal]=useState(null);
-  if(!tasks.length) return null;
-  return<div>
-    {tasks.map(t=>{
-      const st=taskStatus(t,groups);
-      const members=getMembers(t.respType,t.respVal,groups);
-      const comp=t.completions||{};
-      const isMyTask=members.includes(curUser.id);
-      const myComp=comp[curUser.id];
-      return<div key={t.id} style={{borderBottom:'1px solid #F0F4FA',padding:'11px 0'}}>
-        <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-          <div style={{flex:1}}>
-            <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
-              <span style={{fontSize:11,fontWeight:700,color:'#8892B0'}}>{t.no}</span>
-              <Badge st={st}/>
-            </div>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:3}}>{t.txt}</div>
-            {t.note&&<div style={{fontSize:12,color:'#8892B0'}}>💬 {t.note}</div>}
-            <div style={{display:'flex',gap:12,marginTop:5,fontSize:12,color:'#4A5278',flexWrap:'wrap'}}>
-              <span>👤 {respLabel(t.respType,t.respVal,users,groups)}</span>
-              {t.dead&&<span>📅 {fmt(t.dead)}</span>}
-              {t.taskType==='permanent'&&<span style={{color:'#7C3AED'}}>🔁 Stála úloha</span>}
-            </div>
-          </div>
-          <div style={{display:'flex',gap:5,flexShrink:0}}>
-            {isMyTask&&!myComp?.done&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
-            {onEdit&&<Btn size="sm" onClick={()=>onEdit(t)}>✎</Btn>}
-            {onDelete&&<Btn size="sm" variant="red" onClick={()=>setConfirm2(t.id)}>✕</Btn>}
-          </div>
-        </div>
-        {members.length>1&&<div style={{marginTop:7}}>
-          <MemberPill members={members} comp={comp} users={users}/>
-        </div>}
-      </div>;
-    })}
-    {confirm2&&<Modal title="Vymazať?" onClose={()=>setConfirm2(null)} maxWidth={360}
-      footer={<><Btn onClick={()=>setConfirm2(null)}>Zrušiť</Btn><Btn variant="red" onClick={()=>{onDelete(confirm2);setConfirm2(null);toast('Vymazané.');}}>Vymazať</Btn></>}>
-      <p style={{fontSize:14}}>Naozaj chcete vymazať túto {type==='PR'?'uznesenie':'úlohu'}?</p>
-    </Modal>}
-    {doneModal&&<DoneModal task={doneModal} curUser={curUser} onSave={async note=>{await onMarkDone(doneModal.id,curUser.id,note);setDoneModal(null);toast('Splnené! 🎉','ok');}} onClose={()=>setDoneModal(null)}/>}
-  </div>;
-}
-
-function DoneModal({task,curUser,onSave,onClose}){
-  const [note,setNote]=useState('');
-  const [saving,setSaving]=useState(false);
-  return<Modal title="Označiť ako splnené" onClose={onClose} maxWidth={440}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" disabled={saving} onClick={async()=>{setSaving(true);await onSave(note);}}>✓ Splniť</Btn></>}>
-    <div style={{fontSize:14,fontWeight:600,marginBottom:10}}>{task.txt}</div>
-    <Field label="Komentár (voliteľné)"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={3} placeholder="Popis ako bola úloha splnená…" style={{resize:'vertical'}}/></Field>
-  </Modal>;
-}
-
-function MeetModal({type,data,onSave,onClose}){
-  const typeName=MEET_NAMES[type]||type;
-  const [name,setName]=useState('');
-  const [date,setDate]=useState('');
-  const [time,setTime]=useState('13:30');
-  const [place,setPlace]=useState('zborovňa');
-  const [saving,setSaving]=useState(false);
-  const cnt=data.meetings.filter(m=>m.type===type).length+1;
-  const yr=(data.config.sy||'2025/2026').split('/')[0];
-  useEffect(()=>setName(`${typeName} ${cnt}/${yr}`),[]);
-  const save=async()=>{if(!name||!date)return;setSaving(true);await onSave({id:uid(),name,date,type,time,place,program:''});setSaving(false);};
-  return<Modal title={`Nová ${typeName.toLowerCase()}`} onClose={onClose} maxWidth={460}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
-    <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Row2>
-      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
-      <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
-    </Row2>
-    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
-  </Modal>;
-}
-
-function TaskModal({task,meetId,type,data,onSave,onClose}){
+function FullTaskModal({task,meetId,type,data,planMonths,onSave,onClose}){
   const {meetings,users,groups}=data;
   const isNew=!task.id;
   const [txt,setTxt]=useState(task.txt||'');
   const [cat,setCat]=useState(task.cat||'Pedagogika');
-  const [mid,setMid]=useState(task.mid||meetId||'');
+  const [mid,setMid]=useState(task.mid||meetId||meetings[0]?.id||'');
   const [taskType,setTaskType]=useState(task.taskType||'normal');
   const [dead,setDead]=useState((task.dead||'').substring(0,10));
   const [deadTo,setDeadTo]=useState((task.deadTo||'').substring(0,10));
+  const [deadMonth,setDeadMonth]=useState(task.deadMonth||planMonths[0]||'');
   const [note,setNote]=useState(task.note||'');
   const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
   const [saving,setSaving]=useState(false);
-  const typeMeetings=meetings.filter(m=>m.type===type);
-  const allMeetings=typeMeetings.length?typeMeetings:meetings;
+  const typeMeetings=type?meetings.filter(m=>m.type===type):meetings;
+  const meetList=typeMeetings.length?typeMeetings:meetings;
   const save=async()=>{
     if(!txt.trim()) return;
     setSaving(true);
     const m=meetings.find(x=>x.id===mid);
     const cnt=data.tasks.filter(t=>t.mid===mid).length+(isNew?1:0);
-    await onSave({id:task.id||uid(),mid,no:task.no||(m?.type||type)+'-'+cnt,
+    await onSave({id:task.id||uid(),mid,no:task.no||(m?.type||type||'U')+'-'+cnt,
       txt:txt.trim(),cat,taskType,
-      dead:taskType==='permanent'?'':dead,
+      dead:taskType==='permanent'||taskType==='month'?'':dead,
       deadTo:taskType==='range'?deadTo:'',
+      deadMonth:taskType==='month'?deadMonth:'',
       note,respType:resp.type,respVal:resp.val,completions:task.completions||{}});
     setSaving(false);
   };
-  const label=type==='PR'?'uznesenie':'úlohu';
-  return<Modal title={isNew?`Nové ${label}`:`Upraviť ${label}`} onClose={onClose}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':`Uložiť ${label}`}</Btn></>}>
-    <Field label="Text uznesenia / úlohy"><textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder="Popis…" style={{resize:'vertical'}}/></Field>
+  const lbl=type==='PR'?'uznesenie':'úlohu';
+  return<Modal title={isNew?`Nové ${lbl}`:`Upraviť ${lbl}`} onClose={onClose}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':`Uložiť ${lbl}`}</Btn></>}>
+    <Field label="Text"><textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} style={{resize:'vertical'}}/></Field>
     <Row2>
       <Field label="Kategória"><select value={cat} onChange={e=>setCat(e.target.value)}>
         {['Pedagogika','Prevádzka','Administratíva','Ostatné'].map(c=><option key={c}>{c}</option>)}
       </select></Field>
-      <Field label={type==='PR'?'Pedagogická rada':'Pracovná porada'}>
-        <select value={mid} onChange={e=>setMid(e.target.value)}>
-          {allMeetings.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-      </Field>
+      <Field label="Porada"><select value={mid} onChange={e=>setMid(e.target.value)}>
+        {meetList.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+      </select></Field>
     </Row2>
-    <Field label="Typ termínu">
-      <div style={{display:'flex',gap:6}}>
-        {[['normal','Dátum'],['range','Rozsah'],['permanent','Stála']].map(([k,l])=><button type="button" key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'6px 4px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer'}}>{l}</button>)}
-      </div>
-    </Field>
-    {taskType==='normal'&&<Field label="Termín"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
-    {taskType==='range'&&<Row2><Field label="Od"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field><Field label="Do"><input type="date" value={deadTo} onChange={e=>setDeadTo(e.target.value)}/></Field></Row2>}
-    {taskType==='permanent'&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F',marginBottom:13}}>🔁 Stála úloha – bez termínu, platí trvalo.</div>}
+    <DateTypeSelector taskType={taskType} setTaskType={setTaskType} dead={dead} setDead={setDead}
+      deadTo={deadTo} setDeadTo={setDeadTo} deadMonth={deadMonth} setDeadMonth={setDeadMonth}
+      planMonths={planMonths} currentMonth={planMonths[0]}/>
     <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
     <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}} placeholder="Voliteľné…"/></Field>
+  </Modal>;
+}
+
+function DoneModal({task,onSave,onClose}){
+  const [note,setNote]=useState('');
+  const [saving,setSaving]=useState(false);
+  return<Modal title="Označiť ako splnené" onClose={onClose} maxWidth={440}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" disabled={saving} onClick={async()=>{setSaving(true);await onSave(note);}}>✓ Splniť</Btn></>}>
+    <div style={{fontSize:14,fontWeight:600,marginBottom:10}}>{task.txt}</div>
+    <Field label="Komentár (voliteľné)"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={3} style={{resize:'vertical'}} placeholder="Popis ako bola úloha splnená…"/></Field>
   </Modal>;
 }
 
@@ -751,90 +894,86 @@ function App(){
   const [curUser,setCurUser]=useState(null);
   const [view,setView]=useState('plan');
   const [toast,setToast]=useState(null);
+  const [settingsOpen,setSettingsOpen]=useState(false);
 
   const showToast=(msg,type='inf')=>setToast({msg,type});
 
   useEffect(()=>{
     (async()=>{
-      try{
-        const d=await apiGet('init');
-        setData(d);
-        setStatus('login');
-      }catch(e){
+      try{const d=await apiGet('init');setData(d);setStatus('login');}
+      catch(e){
         showToast('Chyba pripojenia: '+e.message,'err');
-        setTimeout(()=>{
-          setData({config:{sy:'2025/2026',school:'ZŠ s MŠ Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}});
-          setStatus('login');
-        },2000);
+        setTimeout(()=>{setData({config:{sy:'2025/2026',school:'ZŠ s MŠ Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}});setStatus('login');},2000);
       }
     })();
   },[]);
 
-  const refresh=async()=>{try{const d=await apiGet();setData(d);}catch(e){}};
+  const handleLogin=id=>{const u=data.users.find(x=>x.id===id);setCurUser(u);setStatus('app');};
 
-  const handleLogin=id=>{
-    const u=data.users.find(x=>x.id===id);
-    setCurUser(u);
-    setStatus('app');
-  };
-
-  // API actions
-  const saveTask=async t=>{
-    await apiPost('saveTask',{data:t});
+  // ─── OPTIMISTICKÉ API AKCIE – UI first, API na pozadí ───
+  const saveTask=t=>{
     setData(d=>({...d,tasks:d.tasks.find(x=>x.id===t.id)?d.tasks.map(x=>x.id===t.id?t:x):[...d.tasks,t]}));
+    return apiPost('saveTask',{data:t}).catch(e=>showToast('Chyba ukladania: '+e.message,'err'));
   };
-  const deleteTask=async id=>{
-    await apiPost('deleteTask',{id});
+  const deleteTask=id=>{
     setData(d=>({...d,tasks:d.tasks.filter(t=>t.id!==id)}));
+    return apiPost('deleteTask',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const saveMeeting=async m=>{
-    await apiPost('saveMeeting',{data:m});
+  const saveMeeting=m=>{
     setData(d=>({...d,meetings:d.meetings.find(x=>x.id===m.id)?d.meetings.map(x=>x.id===m.id?m:x):[...d.meetings,m]}));
+    return apiPost('saveMeeting',{data:m}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const markDone=async(taskId,uid2,note)=>{
+  const markDone=(taskId,uid2,note)=>{
     const comp={done:true,note,date:new Date().toISOString().split('T')[0]};
-    await apiPost('updateCompletion',{taskId,uid:uid2,done:true,note});
     setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,completions:{...t.completions,[uid2]:comp}}:t)}));
+    return apiPost('updateCompletion',{taskId,uid:uid2,done:true,note}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const saveActivity=async act=>{
-    await apiPost('saveActivity',{data:act});
-    setData(d=>{const plans={...d.plans};if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
-      plans[act.month]={...plans[act.month],activities:[...plans[act.month].activities,act]};return{...d,plans};});
+  const saveActivity=act=>{
+    setData(d=>{const plans={...d.plans};
+      if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
+      const existing=plans[act.month].activities.findIndex(a=>a.id===act.id);
+      plans[act.month]={...plans[act.month],activities:existing>=0
+        ?plans[act.month].activities.map(a=>a.id===act.id?act:a)
+        :[...plans[act.month].activities,act]};
+      return{...d,plans};});
+    return apiPost('saveActivity',{data:act}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const deleteActivity=async(id,month)=>{
-    await apiPost('deleteActivity',{id,month});
+  const deleteActivity=(id,month)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
+    return apiPost('deleteActivity',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const approveActivity=async(id,month,approve)=>{
+  const approveActivity=(id,month,approve)=>{
     const status=approve?'approved':'rejected';
-    await apiPost('updateActivityStatus',{id,month,status});
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:approve?plans[month].activities.map(a=>a.id===id?{...a,status}:a):plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
     showToast(approve?'Schválené ✓':'Zamietnuté.',approve?'ok':'inf');
+    return apiPost('updateActivityStatus',{id,month,status}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const saveDay=async day=>{
-    await apiPost('saveDay',{data:day});
+  const saveDay=day=>{
     setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
-      plans[day.month]={...plans[day.month],days:[...plans[day.month].days,day]};return{...d,plans};});
+      plans[day.month]={...plans[day.month],days:[...plans[day.month].days.filter(x=>x.id!==day.id),day]};return{...d,plans};});
+    return apiPost('saveDay',{data:day}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const deleteDay=async(id,month)=>{
-    await apiPost('deleteDay',{id,month});
+  const deleteDay=(id,month)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],days:plans[month].days.filter(x=>x.id!==id)};return{...d,plans};});
+    return apiPost('deleteDay',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
-  const publishPlan=async(month,pub)=>{
-    await apiPost('publishPlan',{month,published:pub});
+  const publishPlan=(month,pub)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],published:pub};return{...d,plans};});
     showToast(pub?'Plán zverejnený! 📢':'Zverejnenie zrušené.',pub?'ok':'inf');
+    return apiPost('publishPlan',{month,published:pub}).catch(e=>showToast('Chyba: '+e.message,'err'));
+  };
+  const saveConfig=async cfg=>{
+    await apiPost('saveConfig',{data:cfg});
+    setData(d=>({...d,config:{...d.config,...cfg}}));
+    showToast('Nastavenia uložené.','ok');
   };
 
-  if(status==='loading') return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
-      <div style={{background:'#fff',borderRadius:20,padding:40,textAlign:'center',boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
-        <div style={{fontSize:16,fontWeight:700,marginBottom:16}}>Školský manažér</div>
-        <Spinner/>
-        <div style={{fontSize:13,color:'#8892B0',marginTop:12}}>Pripájam sa…</div>
-      </div>
+  if(status==='loading') return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
+    <div style={{background:'#fff',borderRadius:20,padding:40,textAlign:'center',boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
+      <div style={{fontSize:16,fontWeight:700,marginBottom:16}}>Školský manažér</div><Spinner/>
+      <div style={{fontSize:13,color:'#8892B0',marginTop:12}}>Pripájam sa…</div>
     </div>
-  );
+  </div>;
 
   if(status==='login'||!curUser) return<>
     {data&&<Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin}/>}
@@ -842,15 +981,10 @@ function App(){
   </>;
 
   const isDir=curUser.role==='r';
-  const navItems=[
-    {k:'plan',icon:'📅',label:'Plán na mesiac'},
-    {k:'pp',icon:'📋',label:'Pracovná porada'},
-    {k:'pr',icon:'🎓',label:'Pedagogická rada'},
-  ];
+  const navItems=[{k:'plan',icon:'📅',label:'Plán na mesiac'},{k:'pp',icon:'📋',label:'Pracovná porada'},{k:'pr',icon:'🎓',label:'Pedagogická rada'}];
 
   return<>
     <div style={{display:'flex',flexDirection:'column',minHeight:'100vh'}}>
-      {/* HEADER */}
       <header className="no-print" style={{background:'#fff',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',padding:'0 22px',height:56,gap:14,position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:9,fontWeight:700,fontSize:14,color:'#1E4B8F',flexShrink:0}}>
           <div style={{width:28,height:28,borderRadius:6,overflow:'hidden',border:'1px solid #E2E6F0'}}>
@@ -862,6 +996,7 @@ function App(){
         <div style={{width:1,height:24,background:'#E2E6F0'}}/>
         <div style={{fontSize:12,fontWeight:600,background:'#EEF3FC',color:'#1E4B8F',padding:'2px 9px',borderRadius:20}}>{data.config.sy}</div>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
+          {isDir&&<Btn size="sm" variant="ghost" onClick={()=>setSettingsOpen(true)}>⚙ Nastavenia</Btn>}
           <div style={{display:'flex',alignItems:'center',gap:7,fontSize:13,fontWeight:500,color:'#4A5278'}}>
             <Avatar uid={curUser.id} users={data.users} size={30}/>
             <span>{curUser.name}</span>
@@ -873,32 +1008,31 @@ function App(){
       </header>
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
-        {/* SIDEBAR */}
         <nav className="no-print" style={{width:220,background:'#fff',borderRight:'1px solid #E2E6F0',display:'flex',flexDirection:'column',padding:'16px 0',flexShrink:0}}>
           <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',color:'#8892B0',padding:'0 18px 8px',textTransform:'uppercase'}}>Hlavné sekcie</div>
           {navItems.map(({k,icon,label})=>{
             const on=view===k;
-            return<div key={k} onClick={()=>setView(k)} style={{display:'flex',alignItems:'center',gap:9,padding:'10px 18px',fontSize:13,fontWeight:on?700:500,color:on?'#1E4B8F':'#4A5278',cursor:'pointer',borderLeft:`3px solid ${on?'#1E4B8F':'transparent'}`,background:on?'#EEF3FC':'transparent',transition:'all .15s'}}
+            return<div key={k} onClick={()=>setView(k)} style={{display:'flex',alignItems:'center',gap:9,padding:'10px 18px',fontSize:13,fontWeight:on?700:500,
+              color:on?'#1E4B8F':'#4A5278',cursor:'pointer',borderLeft:`3px solid ${on?'#1E4B8F':'transparent'}`,background:on?'#EEF3FC':'transparent',transition:'all .15s'}}
               onMouseEnter={e=>{if(!on){e.currentTarget.style.background='#F8FAFD';e.currentTarget.style.color='#1E4B8F';}}}
               onMouseLeave={e=>{if(!on){e.currentTarget.style.background='';e.currentTarget.style.color='#4A5278';}}}>
               <span style={{fontSize:16}}>{icon}</span>{label}
             </div>;
           })}
           <div style={{marginTop:'auto',padding:'14px 16px',borderTop:'1px solid #E2E6F0'}}>
-            <div style={{fontSize:10,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:7}}>Nasledujúca akcia</div>
-            {(()=>{
-              const today=new Date().toISOString().split('T')[0];
+            <div style={{fontSize:10,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:7}}>Nasledujúca porada</div>
+            {(()=>{const today=new Date().toISOString().split('T')[0];
               const next=[...data.meetings].filter(m=>m.date>=today).sort((a,b)=>a.date>b.date?1:-1)[0];
               return next?<><div style={{fontSize:12,fontWeight:700,color:'#1E4B8F'}}>{fmt(next.date)}</div><div style={{fontSize:12,color:'#4A5278'}}>{next.name}</div></>:<div style={{fontSize:12,color:'#8892B0'}}>—</div>;
             })()}
           </div>
         </nav>
 
-        {/* MAIN CONTENT */}
         <main style={{flex:1,overflowY:'auto',padding:22}}>
           {view==='plan'&&<PlanView data={data} curUser={curUser}
+            onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
             onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
-            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} toast={showToast}/>}
+            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} toast={showToast}/>}
           {view==='pp'&&<MeetingView data={data} curUser={curUser} type="PP"
             onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} toast={showToast}/>}
           {view==='pr'&&<MeetingView data={data} curUser={curUser} type="PR"
@@ -906,6 +1040,8 @@ function App(){
         </main>
       </div>
     </div>
+
+    {settingsOpen&&<SettingsModal config={data.config} onSave={saveConfig} onClose={()=>setSettingsOpen(false)}/>}
     {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
   </>;
 }
