@@ -56,18 +56,23 @@ const MEET_BORDER = {PR:'#93C5FD',PP:'#A5B4FC',MZ:'#FCD34D',PK:'#C4B5FD',VED:'#6
 // ═══════════════════════════════════
 // API
 // ═══════════════════════════════════
+function fetchWithTimeout(url, opts={}, ms=20000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), ms);
+  return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(t));
+}
 async function apiGet(action) {
-  const r = await fetch(API + (action ? '?action=' + action : ''));
+  const r = await fetchWithTimeout(API + (action ? '?action=' + action : ''));
   const j = await r.json();
   if (!j.ok) throw new Error(j.error);
   return j.data;
 }
 async function apiPost(action, payload) {
-  const r = await fetch(API, {
+  const r = await fetchWithTimeout(API, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action, ...payload})
-  });
+  }, 30000);
   const j = await r.json();
   if (!j.ok) throw new Error(j.error);
   return j.result;
@@ -1089,17 +1094,30 @@ function App() {
   const toast = (msg, type='inf') => setToastMsg({msg, type});
 
   useEffect(()=>{
-    (async()=>{
-      try {
-        const d = await apiGet('init');
-        setData(d);
-        setStatus('login');
-      } catch(e) {
-        setToastMsg({msg:'Chyba pripojenia: '+e.message, type:'err'});
-        setTimeout(()=>setStatus('login'), 2000);
-        setData({config:{sy:'2025/2026'},users:[],groups:[],meetings:[],tasks:[],plans:{}});
-      }
-    })();
+    // Okamžite zobraz login
+    const empty = {config:{sy:'2025/2026',school:'ZŠ s MŠ, Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}};
+    setData(empty);
+    setStatus('login');
+
+    // Po 10 sekundách povoľ prihlásenie aj keby dáta neprišli
+    const fallback = setTimeout(()=>setDataReady(true), 10000);
+
+    // Načítaj dáta zo servera na pozadí
+    apiGet('init').then(d=>{
+      clearTimeout(fallback);
+      setData(d);
+      setDataReady(true);
+    }).catch(e=>{
+      console.warn('Init zlyhalo:', e.message);
+      setDataReady(true); // pri chybe tiež povoľ login
+    });
+
+    // Polling každých 45 sekúnd
+    const poll = setInterval(()=>{
+      apiGet('').then(d=>{setData(d);setDataReady(true);}).catch(()=>{});
+    }, 45000);
+
+    return ()=>{ clearInterval(poll); clearTimeout(fallback); };
   },[]);
 
   const refresh = async() => {
