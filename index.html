@@ -322,7 +322,7 @@ function RespSelector({value, onChange, users, groups}) {
 // ═══════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════
-function Login({users, config, onLogin, dataLoading}) {
+function Login({users, config, onLogin, dataReady}) {
   const [uid, setUid] = useState('');
   const [pwd, setPwd] = useState('');
   const [err, setErr] = useState('');
@@ -330,7 +330,7 @@ function Login({users, config, onLogin, dataLoading}) {
   const handle = () => {
     if (!uid) { setErr('Vyberte meno.'); return; }
     if (pwd !== PASSWORD) { setErr('Nesprávne heslo.'); return; }
-    if (dataLoading) { setErr('Počkajte, kým sa načítajú dáta…'); return; }
+    if (!dataReady) { setErr('Počkajte, dáta sa načítavajú…'); return; }
     onLogin(uid);
   };
 
@@ -357,14 +357,14 @@ function Login({users, config, onLogin, dataLoading}) {
         <input type="password" value={pwd} onChange={e=>{setPwd(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&handle()} placeholder="Zadajte heslo"/>
       </Field>
       {err && <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#DC2626',marginBottom:12}}>⚠ {err}</div>}
-      <button onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:'pointer'}}>
-        Prihlásiť sa →
+      <button onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:dataReady?'linear-gradient(135deg,#1E4B8F,#2A9D6F)':'#94A3B8',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:dataReady?'pointer':'not-allowed',transition:'background .3s'}}>
+        {dataReady ? 'Prihlásiť sa →' : 'Načítavam dáta…'}
       </button>
-      {dataLoading && <div style={{marginTop:14,display:'flex',alignItems:'center',gap:8,justifyContent:'center',fontSize:12,color:'#8892B0'}}>
-        <div style={{width:14,height:14,border:'2px solid #E2E6F0',borderTopColor:'#1E4B8F',borderRadius:'50%',animation:'spin .7s linear infinite',flexShrink:0}}/>
-        Načítavam dáta zo Sheets…
-      </div>}
-      {!dataLoading && users.length>0 && <div style={{marginTop:10,fontSize:12,color:'#2A9D6F',textAlign:'center'}}>✓ Dáta načítané ({users.length} zamestnancov)</div>}
+      <div style={{marginTop:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:12,color:dataReady?'#2A9D6F':'#8892B0'}}>
+        {dataReady
+          ? <><span style={{fontSize:14}}>✓</span> Dáta načítané{users.length>0?' ('+users.length+' zamestnancov)':''}</>
+          : <><div style={{width:13,height:13,border:'2px solid #E2E6F0',borderTopColor:'#1E4B8F',borderRadius:'50%',animation:'spin .7s linear infinite'}}/> Pripájam sa k databáze…</>}
+      </div>
     </div>
   </div>;
 }
@@ -751,23 +751,27 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
         </SectionCard>
       </div>
       <div>
-        <SectionCard title="C/ Aktivity a podujatia" count={(pm.activities||[]).length} extra={pendActs.length>0&&<span style={{color:'#D97706',fontSize:11,marginLeft:6}}>{pendActs.length} čaká na schv.</span>} onAdd={()=>setActModal(true)}>
-          {!(pm.activities||[]).length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
+        <SectionCard title="C/ Aktivity a podujatia" count={(pm.activities||[]).length} extra={pendActs.length>0&&<span style={{color:'#D97706',fontSize:11,marginLeft:6}}>({pendActs.length} čaká)</span>} onAdd={()=>setActModal(true)}>
+          {!(pm.activities||[]).length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity v tomto mesiaci.</div>}
           {(pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
             const isPending = a.status==='pending';
-            const dateStr = a.dateType==='range'&&a.dateTo?fmtS(a.date)+' – '+fmtS(a.dateTo):a.date?fmtS(a.date):'celý mesiac';
+            const dateStr = a.dateType==='range'&&a.dateTo ? fmtS(a.date)+' – '+fmtS(a.dateTo) : a.date ? fmtS(a.date) : 'celý mesiac';
+            const who = respLabel(a.respType||'single',a.respVal,users,groups);
             return <div key={a.id} style={{padding:'9px 0',borderBottom:'1px solid #F0F4FA'}}>
-              <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                <div style={{flex:1}}>
-                  <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap',marginBottom:3}}>
+                    <span style={{fontSize:12,fontWeight:600,color:'#1E4B8F',flexShrink:0}}>{dateStr}</span>
+                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 7px',borderRadius:20,flexShrink:0}}>čaká na schválenie</span>}
                     <strong style={{fontSize:13}}>{a.name}</strong>
-                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 7px',borderRadius:20}}>čaká na schválenie</span>}
                   </div>
-                  <div style={{fontSize:12,color:'#8892B0'}}>{dateStr} · {a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+                  <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {who}</div>
                 </div>
-                {isDir && <div style={{display:'flex',gap:5,flexShrink:0}}>
-                  {isPending && <><Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓</Btn>
-                  <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕</Btn></>}
+                {isDir && <div style={{display:'flex',gap:4,flexShrink:0,paddingTop:2}}>
+                  {isPending && <>
+                    <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓</Btn>
+                    <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕</Btn>
+                  </>}
                   <Btn size="sm" onClick={()=>onDeleteAct(a.id,month)}>🗑</Btn>
                 </div>}
               </div>
@@ -797,7 +801,7 @@ function ActModal({month, data, curUser, onSave, onClose}) {
   const [date, setDate] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [cls, setCls] = useState('');
-  const [selMonth, setSelMonth] = useState(month);
+  const [selMonth, setSelMonth] = useState(month||defaultPlanMonth());
   const [note, setNote] = useState('');
   const [resp, setResp] = useState({type:'single',val:curUser.id});
   const [saving, setSaving] = useState(false);
@@ -927,12 +931,12 @@ function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
             ['C/ Aktivity', (pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
               const isPend = a.status==='pending';
               return <div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-                  <span style={{fontWeight:600,color:'#1E4B8F',flexShrink:0,fontSize:12}}>{a.date?fmtS(a.date):'celý mesiac'}</span>
-                  {isPend && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 6px',borderRadius:20,flexShrink:0}}>čaká</span>}
-                  <strong style={{fontSize:13}}>{a.name}</strong>
+                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                  <span style={{fontWeight:600,color:'#1E4B8F',fontSize:12,flexShrink:0}}>{a.date?fmtS(a.date):'celý mesiac'}</span>
+                  {isPend && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 6px',borderRadius:20}}>čaká na schválenie</span>}
+                  <strong>{a.name}</strong>
                 </div>
-                <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+                <div style={{fontSize:12,color:'#8892B0',marginTop:2}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
               </div>;
             })],
           ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
@@ -1075,7 +1079,7 @@ function RemindModal({task, data, onClose}) {
 function App() {
   const [status, setStatus] = useState('loading'); // loading | login | app
   const [data, setData] = useState(null);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataReady, setDataReady] = useState(false);
   const [curUser, setCurUser] = useState(null);
   const [view, setView] = useState('dashboard');
   const [toastMsg, setToastMsg] = useState(null);
@@ -1085,19 +1089,15 @@ function App() {
   const toast = (msg, type='inf') => setToastMsg({msg, type});
 
   useEffect(()=>{
-    // Show login form immediately with empty data, load real data in background
-    const empty = {config:{sy:'2025/2026',school:'ZŠ s MŠ, Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}};
-    setData(empty);
-    setStatus('login');
-    // Load real data in background — update UI when ready
     (async()=>{
       try {
         const d = await apiGet('init');
         setData(d);
-        setDataLoading(false);
+        setStatus('login');
       } catch(e) {
-        setDataLoading(false);
-        setToastMsg({msg:'⚠ Dáta sa nepodarilo načítať: '+e.message, type:'err'});
+        setToastMsg({msg:'Chyba pripojenia: '+e.message, type:'err'});
+        setTimeout(()=>setStatus('login'), 2000);
+        setData({config:{sy:'2025/2026'},users:[],groups:[],meetings:[],tasks:[],plans:{}});
       }
     })();
   },[]);
@@ -1137,8 +1137,23 @@ function App() {
   };
 
   const saveActivity = async(act) => {
-    await apiPost('saveActivity',{data:act});
-    setData(d=>{const plans={...d.plans};if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};plans[act.month]={...plans[act.month],activities:[...plans[act.month].activities,act]};return{...d,plans};});
+    // Optimistic update – pridaj aktivitu ihneď do UI bez čakania na server
+    setData(d=>{
+      const plans={...d.plans};
+      if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
+      plans[act.month]={...plans[act.month],activities:[...plans[act.month].activities,act]};
+      return{...d,plans};
+    });
+    // Odošli na server na pozadí
+    try {
+      await apiPost('saveActivity',{data:act});
+      // Po uložení načítaj čerstvé dáta (ostatní uvidia zmenu)
+      setTimeout(async()=>{
+        try { const d = await apiGet(''); setData(d); setDataReady(true); } catch(_){}
+      }, 2000);
+    } catch(e) {
+      toast('Aktivita uložená lokálne – server nedostupný.','inf');
+    }
   };
 
   const deleteActivity = async(id, month) => {
@@ -1180,10 +1195,10 @@ function App() {
     setData(d=>({...d,groups:d.groups.map(x=>x.id===g.id?g:x)}));
   };
 
-  // status 'loading' is no longer used - login shows immediately
+  // Loading screen removed – login is now shown immediately
 
   if (status==='login' || !curUser) return <>
-    {data && <Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin} dataLoading={dataLoading}/>}
+    {data && <Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin} dataReady={dataReady}/>}
     {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
   </>;
 
