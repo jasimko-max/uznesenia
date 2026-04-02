@@ -1085,6 +1085,7 @@ function App() {
   const [status, setStatus] = useState('loading'); // loading | login | app
   const [data, setData] = useState(null);
   const [dataReady, setDataReady] = useState(false);
+  const pendingSaves = React.useRef(0); // počet prebiehajúcich zápisov
   const [curUser, setCurUser] = useState(null);
   const [view, setView] = useState('dashboard');
   const [toastMsg, setToastMsg] = useState(null);
@@ -1112,8 +1113,9 @@ function App() {
       setDataReady(true); // pri chybe tiež povoľ login
     });
 
-    // Polling každých 45 sekúnd
+    // Polling každých 45 sekúnd – preskočí ak prebieha save
     const poll = setInterval(()=>{
+      if(pendingSaves.current > 0) return; // počkaj kým sa uloží
       apiGet('').then(d=>{setData(d);setDataReady(true);}).catch(()=>{});
     }, 45000);
 
@@ -1121,7 +1123,8 @@ function App() {
   },[]);
 
   const refresh = async() => {
-    try { const d = await apiGet(''); setData(d); } catch(e) {}
+    if(pendingSaves.current > 0) return;
+    try { const d = await apiGet(''); setData(d); setDataReady(true); } catch(e) {}
   };
 
   const handleLogin = (uid) => {
@@ -1131,8 +1134,15 @@ function App() {
   };
 
   const saveTask = async(taskData, silent=false) => {
-    await apiPost('saveTask',{data:taskData});
+    pendingSaves.current++;
     setData(d=>({...d,tasks:d.tasks.find(t=>t.id===taskData.id)?d.tasks.map(t=>t.id===taskData.id?taskData:t):[...d.tasks,taskData]}));
+    try {
+      await apiPost('saveTask',{data:taskData});
+    } catch(e) {
+      if(!silent) toast('Chyba: '+e.message,'err');
+    } finally {
+      pendingSaves.current--;
+    }
     if (!silent) toast('Úloha uložená.','ok');
   };
 
@@ -1155,22 +1165,29 @@ function App() {
   };
 
   const saveActivity = async(act) => {
-    // Optimistic update – pridaj aktivitu ihneď do UI bez čakania na server
+    // 1. Pridaj do UI okamžite
+    pendingSaves.current++;
     setData(d=>{
-      const plans={...d.plans};
-      if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
-      plans[act.month]={...plans[act.month],activities:[...plans[act.month].activities,act]};
-      return{...d,plans};
+      const plans = JSON.parse(JSON.stringify(d.plans));
+      if(!plans[act.month]) plans[act.month]={published:false,days:[],activities:[]};
+      plans[act.month].activities = plans[act.month].activities.filter(a=>a.id!==act.id);
+      plans[act.month].activities.push(act);
+      return {...d, plans};
     });
-    // Odošli na server na pozadí
+
+    // 2. Odošli na server
     try {
       await apiPost('saveActivity',{data:act});
-      // Po uložení načítaj čerstvé dáta (ostatní uvidia zmenu)
-      setTimeout(async()=>{
-        try { const d = await apiGet(''); setData(d); setDataReady(true); } catch(_){}
-      }, 2000);
+      pendingSaves.current--;
+      // 3. Počkaj kým Worker invaliduje cache (CACHE_TTL=45s, ale POST ju invaliduje)
+      // Stačí počkať 3s
+      await new Promise(r=>setTimeout(r,3000));
+      const d = await apiGet('');
+      setData(d);
+      setDataReady(true);
     } catch(e) {
-      toast('Aktivita uložená lokálne – server nedostupný.','inf');
+      pendingSaves.current--;
+      toast('Chyba pri odosielaní: '+e.message,'err');
     }
   };
 
