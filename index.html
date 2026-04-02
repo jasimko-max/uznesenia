@@ -794,7 +794,7 @@ function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, o
       </div>
     </div>
 
-    {actModal && <ActModal month={month} data={data} curUser={curUser} onSave={async(d)=>{await onSaveAct(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
+    {actModal && <ActModal month={month} data={data} curUser={curUser} onSave={d=>{onSaveAct(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
     {dayModal && <DayModal month={month} onSave={async(d)=>{await onSaveDay(d);setDayModal(false);toast('Deň uložený.','ok');}} onClose={()=>setDayModal(false)}/>}
   </div>;
 }
@@ -809,14 +809,11 @@ function ActModal({month, data, curUser, onSave, onClose}) {
   const [selMonth, setSelMonth] = useState(month||defaultPlanMonth());
   const [note, setNote] = useState('');
   const [resp, setResp] = useState({type:'single',val:curUser.id});
-  const [saving, setSaving] = useState(false);
-
-  const save = async() => {
+  const save = () => {
     if (!name) return;
     if (dateType==='exact' && !date) return;
     if (dateType==='range' && (!date||!dateTo)) return;
-    setSaving(true);
-    await onSave({
+    onSave({
       id:'a'+uid(), name, cls:cls||'—',
       date: dateType==='month_only'?'':date,
       dateTo: dateType==='range'?dateTo:'',
@@ -824,12 +821,11 @@ function ActModal({month, data, curUser, onSave, onClose}) {
       respType:resp.type, respVal:resp.val, note,
       status:curUser.role==='r'?'approved':'pending', month:selMonth
     });
-    setSaving(false);
   };
 
   const dtLabels = {exact:'Presný dátum',range:'Rozsah dátumov',month_only:'Len mesiac (dátum neznámy)'};
   return <Modal title="Pridať aktivitu do plánu" onClose={onClose}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Odosielam…':'Odoslať'}</Btn></>}>
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save}>Odoslať</Btn></>}>
     <Field label="Názov akcie"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Múzeum holokaustu"/></Field>
     <Field label="Typ dátumu">
       <div style={{display:'flex',gap:6}}>
@@ -1113,10 +1109,26 @@ function App() {
       setDataReady(true); // pri chybe tiež povoľ login
     });
 
-    // Polling každých 45 sekúnd – preskočí ak prebieha save
+    // Polling každých 45 sekúnd
     const poll = setInterval(()=>{
-      if(pendingSaves.current > 0) return; // počkaj kým sa uloží
-      apiGet('').then(d=>{setData(d);setDataReady(true);}).catch(()=>{});
+      apiGet('').then(serverData=>{
+        setData(prev=>{
+          if(!prev) return serverData;
+          // Merge: zachovaj lokálne aktivity/dni ktoré server ešte nepozná
+          const merged = JSON.parse(JSON.stringify(serverData));
+          Object.keys(prev.plans||{}).forEach(mk=>{
+            if(!merged.plans) merged.plans={};
+            if(!merged.plans[mk]) merged.plans[mk]={published:false,days:[],activities:[]};
+            const localActs = prev.plans[mk]?.activities||[];
+            const srvActs = merged.plans[mk]?.activities||[];
+            const srvIds = new Set(srvActs.map(a=>a.id));
+            const missing = localActs.filter(a=>!srvIds.has(a.id));
+            if(missing.length) merged.plans[mk].activities=[...srvActs,...missing];
+          });
+          return merged;
+        });
+        setDataReady(true);
+      }).catch(()=>{});
     }, 45000);
 
     return ()=>{ clearInterval(poll); clearTimeout(fallback); };
@@ -1165,8 +1177,7 @@ function App() {
   };
 
   const saveActivity = async(act) => {
-    // 1. Pridaj do UI okamžite
-    pendingSaves.current++;
+    // 1. Pridaj do UI OKAMŽITE (optimistická aktualizácia)
     setData(d=>{
       const plans = JSON.parse(JSON.stringify(d.plans));
       if(!plans[act.month]) plans[act.month]={published:false,days:[],activities:[]};
@@ -1175,20 +1186,11 @@ function App() {
       return {...d, plans};
     });
 
-    // 2. Odošli na server
-    try {
-      await apiPost('saveActivity',{data:act});
-      pendingSaves.current--;
-      // 3. Počkaj kým Worker invaliduje cache (CACHE_TTL=45s, ale POST ju invaliduje)
-      // Stačí počkať 3s
-      await new Promise(r=>setTimeout(r,3000));
-      const d = await apiGet('');
-      setData(d);
-      setDataReady(true);
-    } catch(e) {
-      pendingSaves.current--;
+    // 2. Odošli na server — NEprenastavuj data po odpovedi (aktivita by zmizla)
+    apiPost('saveActivity',{data:act}).catch(e=>{
       toast('Chyba pri odosielaní: '+e.message,'err');
-    }
+    });
+    // Hotovo — aktivita zostane v UI, polling ju potvrdí pri ďalšom cykle
   };
 
   const deleteActivity = async(id, month) => {
@@ -1278,7 +1280,7 @@ function App() {
     </div>
 
     {remindTask && <RemindModal task={remindTask} data={data} onClose={()=>setRemindTask(null)}/>}
-    {actModal && <ActModal month={defaultPlanMonth()} data={data} curUser={curUser} onSave={async(d)=>{await saveActivity(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
+    {actModal && <ActModal month={defaultPlanMonth()} data={data} curUser={curUser} onSave={d=>{saveActivity(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
     {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
   </>;
 }
