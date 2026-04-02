@@ -16,344 +16,250 @@ body{font-family:'DM Sans',sans-serif;background:#F0F4FA;color:#1a1f36;font-size
   --green:#2A9D6F;--green-l:#E6F5EE;
   --red:#DC2626;--red-l:#FEF2F2;
   --amber:#D97706;--amber-l:#FFFBEB;
-  --ok:#16A34A;--ok-l:#F0FDF4;
   --purple:#7C3AED;--purple-l:#F5F3FF;
   --bd:#E2E6F0;--tx2:#4A5278;--tx3:#8892B0;
-  --r:10px;--rl:14px;
-  --sh:0 1px 4px rgba(30,75,143,.08);
-  --shm:0 4px 20px rgba(30,75,143,.14);
+  --r:10px;--sh:0 1px 4px rgba(30,75,143,.08);
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.animate{animation:fadeIn .25s ease both}
-.spinner{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
-input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:10px 13px;border:1.5px solid var(--bd);border-radius:var(--r);color:#1a1f36;background:#F8FAFD;outline:none;transition:border .2s,background .2s}
+.animate{animation:fadeIn .2s ease both}
+.spinner{width:30px;height:30px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:9px 12px;border:1.5px solid var(--bd);border-radius:var(--r);color:#1a1f36;background:#F8FAFD;outline:none;transition:border .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--blue);background:#fff}
 button{font-family:inherit;cursor:pointer;transition:all .15s}
+@media print{
+  .no-print{display:none!important}
+  body{background:#fff}
+  .print-area{box-shadow:none!important;border:none!important}
+}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const {useState,useEffect,useRef,useCallback} = React;
 
-// ═══════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════
-const API = 'https://uznesenia-api.jasimko.workers.dev';
+// ═══ CONFIG ═══
+const GAS = 'https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec';
 const PASSWORD = '1379';
 const MONTHS = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const PLAN_MONTHS = ['2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
-function curMonthKey() { const n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
-function defaultPlanMonth() { const c=curMonthKey(); return PLAN_MONTHS.includes(c)?c:PLAN_MONTHS[0]; }
 const AV_COLORS = {blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
-const MEET_COLORS = {PR:'#DBEAFE',PP:'#E0E7FF',MZ:'#FEF3C7',PK:'#EDE9FE',VED:'#D1FAE5',RR:'#FCE7F3'};
-const MEET_TEXT =  {PR:'#1E40AF',PP:'#3730A3',MZ:'#92400E',PK:'#5B21B6',VED:'#065F46',RR:'#9D174D'};
-const MEET_BORDER = {PR:'#93C5FD',PP:'#A5B4FC',MZ:'#FCD34D',PK:'#C4B5FD',VED:'#6EE7B7',RR:'#F9A8D4'};
+const MEET_COLORS = {PR:'#FEF2F2',PP:'#EEF3FC',MZ:'#FFF7ED',PK:'#F5F3FF',VED:'#F0FDF4',RR:'#FDF2F8'};
+const MEET_TEXT  = {PR:'#DC2626',PP:'#1E4B8F',MZ:'#C2410C',PK:'#6D28D9',VED:'#15803D',RR:'#9D174D'};
+const MEET_NAMES = {PR:'Pedagogická rada',PP:'Pracovná porada',MZ:'Metodické združenie',PK:'Predmetová komisia',VED:'Vedenie školy',RR:'Rodičovská rada'};
 
-// ═══════════════════════════════════
-// API
-// ═══════════════════════════════════
-function fetchWithTimeout(url, opts={}, ms=20000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), ms);
-  return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(t));
-}
-async function apiGet(action) {
-  const r = await fetchWithTimeout(API + (action ? '?action=' + action : ''));
+// ═══ API ═══
+async function apiGet(action=''){
+  const r = await fetch(GAS+(action?'?action='+action:''));
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error);
+  if(!j.ok) throw new Error(j.error);
   return j.data;
 }
-async function apiPost(action, payload) {
-  const r = await fetchWithTimeout(API, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({action, ...payload})
-  }, 30000);
+async function apiPost(action,payload={}){
+  const r = await fetch(GAS,{method:'POST',body:JSON.stringify({action,...payload})});
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error);
+  if(!j.ok) throw new Error(j.error);
   return j.result;
 }
 
-// ═══════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════
-function fmt(d) {
-  if (!d) return '';
-  const dt = new Date(d);
-  return isNaN(dt) ? d : dt.toLocaleDateString('sk-SK',{day:'numeric',month:'numeric',year:'numeric'});
-}
-function fmtS(d) {
-  if (!d) return '';
-  const dt = new Date(d);
-  return isNaN(dt) ? d : dt.toLocaleDateString('sk-SK',{day:'numeric',month:'long'});
-}
-function mlabel(k) {
-  const [y,m] = k.split('-');
-  return MONTHS[parseInt(m)-1] + ' ' + y;
-}
-function pct(a,b) { return b ? Math.round(a/b*100) : 0; }
-function uid() { return 'x'+Date.now()+Math.random().toString(36).slice(2,6); }
-
-function getMembers(respType, respVal, groups) {
-  if (!respType || respType === 'single') return [respVal].filter(Boolean);
-  if (respType === 'group') {
-    const g = groups.find(x=>x.id===respVal);
-    return g && g.memberIds ? g.memberIds.split(',').filter(Boolean) : [];
-  }
-  if (respType === 'persons') return (respVal||'').split(',').filter(Boolean);
+// ═══ HELPERS ═══
+function uid(){return 'x'+Date.now()+Math.random().toString(36).slice(2,6)}
+function mlabel(k){if(!k)return'';const[y,m]=k.split('-');return(MONTHS[parseInt(m)-1]||'')+ ' '+y}
+function fmt(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'numeric',year:'numeric'})}
+function fmtS(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'long'})}
+function pct(a,b){return b?Math.round(a/b*100):0}
+function getMembers(type,val,groups){
+  if(!type||type==='single') return [val].filter(Boolean);
+  if(type==='group'){const g=groups.find(x=>x.id===val);return g&&g.memberIds?g.memberIds.split(',').filter(Boolean):[];}
+  if(type==='persons') return (val||'').split(',').filter(Boolean);
   return [];
 }
-function respLabel(respType, respVal, users, groups) {
-  if (respType === 'group') {
-    const g = groups.find(x=>x.id===respVal);
-    return g ? g.name : respVal;
-  }
-  if (respType === 'persons') {
-    return (respVal||'').split(',').map(id => {
-      const u = users.find(x=>x.id===id);
-      return u ? u.name.split(' ').pop() : id;
-    }).join(', ');
-  }
-  const u = users.find(x=>x.id===respVal);
-  return u ? u.name : respVal;
+function userName(id,users){const u=users.find(x=>x.id===id);return u?u.name:id}
+function respLabel(type,val,users,groups){
+  if(type==='group'){const g=groups.find(x=>x.id===val);return g?g.name:val;}
+  if(type==='persons') return (val||'').split(',').map(id=>userName(id,users).split(' ').pop()).join(', ');
+  return userName(val,users);
 }
-function taskStatus(task, groups) {
-  const members = getMembers(task.respType, task.respVal, groups);
-  if (!members.length) return 'otvorene';
-  const comp = task.completions || {};
-  const done = members.filter(id => comp[id]?.done).length;
-  if (task.taskType === 'permanent') return done===members.length?'splnene':done>0?'blizi-sa':'otvorene';
-  const now = new Date().toISOString().split('T')[0];
-  const deadRef = task.taskType==='range'&&task.deadTo ? task.deadTo.substring(0,10) : (task.dead||'').substring(0,10);
-  const over = deadRef && deadRef < now;
-  if (done === members.length) return 'splnene';
-  if (done > 0) return 'blizi-sa';
-  if (over) return 'po-termine';
+function taskStatus(t,groups){
+  const members=getMembers(t.respType,t.respVal,groups);
+  if(!members.length) return 'otvorene';
+  const comp=t.completions||{};
+  const done=members.filter(id=>comp[id]?.done).length;
+  if(done===members.length) return 'splnene';
+  if(done>0) return 'ciastocne';
+  const now=new Date().toISOString().split('T')[0];
+  const dead=t.taskType==='range'?(t.deadTo||''):(t.dead||'');
+  if(dead&&dead.substring(0,10)<now) return 'po-termine';
   return 'otvorene';
 }
 
-// ═══════════════════════════════════
-// UI ATOMS
-// ═══════════════════════════════════
-function Spinner() {
-  return <div style={{display:'flex',alignItems:'center',justifyContent:'center',padding:'40px'}}>
-    <div className="spinner"/>
-  </div>;
-}
+// ═══ UI ATOMS ═══
+function Spinner(){return<div style={{display:'flex',justifyContent:'center',padding:40}}><div className="spinner"/></div>}
 
-function Badge({status, compStr}) {
-  const cfg = {
-    'splnene': {bg:'#F0FDF4',c:'#15803D',lbl:'Splnené'},
-    'blizi-sa': {bg:'#FFFBEB',c:'#B45309',lbl:'V plnení'},
-    'po-termine': {bg:'#FEF2F2',c:'#DC2626',lbl:'Po termíne'},
-    'otvorene': {bg:'#EEF3FC',c:'#1E4B8F',lbl:'Otvorené'},
+function Btn({children,onClick,variant='outline',size='md',disabled,style={}}){
+  const base={display:'inline-flex',alignItems:'center',gap:5,borderRadius:9,fontFamily:'inherit',fontWeight:600,cursor:disabled?'not-allowed':'pointer',opacity:disabled?.55:1,border:'1.5px solid transparent',...style};
+  const sz=size==='sm'?{padding:'4px 11px',fontSize:12}:{padding:'8px 16px',fontSize:13};
+  const vars={
+    primary:{background:'#1E4B8F',color:'#fff',borderColor:'#1E4B8F'},
+    green:{background:'#2A9D6F',color:'#fff',borderColor:'#2A9D6F'},
+    red:{background:'#FEF2F2',color:'#DC2626',borderColor:'#FECACA'},
+    outline:{background:'#fff',color:'#4A5278',borderColor:'#E2E6F0'},
+    ghost:{background:'transparent',color:'#4A5278',borderColor:'transparent'},
+    amber:{background:'#FFFBEB',color:'#B45309',borderColor:'#FDE68A'},
   };
-  const s = cfg[status] || {bg:'#F1EEF8',c:'#888',lbl:status};
-  return <span style={{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:s.bg,color:s.c,whiteSpace:'nowrap'}}>
-    {s.lbl}{compStr && <span style={{opacity:.7}}> {compStr}</span>}
-  </span>;
+  return<button type="button" style={{...base,...sz,...vars[variant]||vars.outline}} onClick={disabled?undefined:onClick}>{children}</button>;
 }
 
-function Btn({children, onClick, variant='outline', size='md', disabled, style={}}) {
-  const base = {display:'inline-flex',alignItems:'center',gap:6,borderRadius:10,fontFamily:'inherit',fontWeight:600,cursor:disabled?'not-allowed':'pointer',opacity:disabled?.6:1,border:'1.5px solid transparent',...style};
-  const sz = size==='sm' ? {padding:'4px 10px',fontSize:12} : {padding:'8px 16px',fontSize:13};
-  const vars = {
-    primary: {background:'#1E4B8F',color:'#fff',borderColor:'#1E4B8F'},
-    green: {background:'#2A9D6F',color:'#fff',borderColor:'#2A9D6F'},
-    outline: {background:'transparent',color:'#4A5278',borderColor:'#E2E6F0'},
-    danger: {background:'#FEF2F2',color:'#DC2626',borderColor:'#FECACA'},
-    ok: {background:'#F0FDF4',color:'#15803D',borderColor:'#BBF7D0'},
-  };
-  return <button style={{...base,...sz,...vars[variant]}} onClick={disabled?undefined:onClick}>{children}</button>;
+function Badge({st}){
+  const cfg={splnene:{bg:'#F0FDF4',c:'#15803D',l:'Splnené'},ciastocne:{bg:'#FFFBEB',c:'#B45309',l:'Čiastočne'},
+    'po-termine':{bg:'#FEF2F2',c:'#DC2626',l:'Po termíne'},otvorene:{bg:'#EEF3FC',c:'#1E4B8F',l:'Otvorené'}};
+  const s=cfg[st]||{bg:'#F8FAFD',c:'#888',l:st};
+  return<span style={{display:'inline-flex',padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:s.bg,color:s.c,whiteSpace:'nowrap'}}>{s.l}</span>;
 }
 
-function Avatar({uid, users, size=28}) {
-  const u = users.find(x=>x.id===uid)||{ini:'?',avColor:'blue'};
-  return <div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
+function Avatar({uid,users,size=28}){
+  const u=users.find(x=>x.id===uid)||{ini:'?',avColor:'blue'};
+  return<div style={{width:size,height:size,borderRadius:'50%',background:AV_COLORS[u.avColor]||'#888',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.37),fontWeight:700,color:'#fff',flexShrink:0}}>{u.ini}</div>;
 }
 
-
-function MemberList({members, comp, users}) {
-  const [open, setOpen] = React.useState(false);
-  const SHOW = 1;
-  const extra = members.length - SHOW;
-  const doneC = members.filter(id => (comp[id]||{}).done).length;
-  if (members.length <= 1) return null;
-  const first = members[0];
-  const firstUser = users.find(x=>x.id===first)||{};
-  const firstName = (firstUser.name||first).split(' ').pop();
-  return (
-    <div style={{position:'relative', display:'inline-block'}}
-      onMouseEnter={()=>setOpen(true)}
-      onMouseLeave={()=>setOpen(false)}>
-      {/* Kompaktný riadok - vždy viditeľný */}
-      <div style={{display:'flex',alignItems:'center',gap:6,cursor:'default',padding:'2px 0'}}>
-        <Avatar uid={first} users={users} size={22}/>
-        <span style={{fontSize:12,fontWeight:500,color:'#1a1f36'}}>{firstName}</span>
-        {extra>0 && <span style={{fontSize:11,fontWeight:700,color:'#4A5278',background:'#E2E6F0',
-          borderRadius:10,padding:'1px 7px',whiteSpace:'nowrap'}}>+{extra}</span>}
-        <span style={{fontSize:11,color:'#8892B0',marginLeft:2}}>{doneC}/{members.length}</span>
+function MemberPill({members,comp,users}){
+  const [open,setOpen]=useState(false);
+  const done=members.filter(id=>(comp[id]||{}).done).length;
+  if(!members.length) return null;
+  if(members.length===1){
+    const u=users.find(x=>x.id===members[0])||{};
+    return<div style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><Avatar uid={members[0]} users={users} size={20}/><span>{(u.name||members[0]).split(' ').pop()}</span></div>;
+  }
+  const first=users.find(x=>x.id===members[0])||{};
+  return(
+    <div style={{position:'relative',display:'inline-block'}} onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
+      <div style={{display:'flex',alignItems:'center',gap:6,cursor:'default'}}>
+        <Avatar uid={members[0]} users={users} size={20}/>
+        <span style={{fontSize:12,fontWeight:500}}>{(first.name||members[0]).split(' ').pop()}</span>
+        <span style={{fontSize:11,background:'#E2E6F0',borderRadius:10,padding:'1px 6px',color:'#4A5278',fontWeight:700}}>+{members.length-1}</span>
+        <span style={{fontSize:11,color:'#8892B0'}}>{done}/{members.length}</span>
       </div>
-      {/* Rozbalený dropdown pri hover */}
-      {open && (
-        <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:500,
-          background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',
-          boxShadow:'0 8px 28px rgba(30,75,143,.18)',
-          minWidth:210,maxHeight:300,overflowY:'auto',
-          animation:'fadeIn .12s ease both'}}>
-          <div style={{position:'absolute',top:-5,left:12,width:10,height:10,
-            background:'#fff',border:'1px solid #E2E6F0',
-            borderBottom:'none',borderRight:'none',transform:'rotate(45deg)'}}/>
-          {members.map(id=>{
-            const c2=comp[id]||{}; const u=users.find(x=>x.id===id)||{};
-            const nm=(u.name||id).split(' ').pop();
-            return (
-              <div key={id} style={{display:'flex',alignItems:'center',gap:8,
-                padding:'6px 12px',fontSize:12,
-                borderBottom:'1px solid #F8FAFD',
-                background:c2.done?'#F0FDF4':'#fff'}}>
-                <Avatar uid={id} users={users} size={20}/>
-                <span style={{flex:1,fontWeight:500,color:'#1a1f36'}}>{nm}</span>
-                {c2.done
-                  ? <span style={{color:'#2A9D6F',fontWeight:700,fontSize:13}}>✓</span>
-                  : <span style={{color:'#C0C8D8',fontSize:13}}>—</span>}
-              </div>
-            );
-          })}
-          <div style={{padding:'6px 12px 5px',fontSize:11,color:'#8892B0',
-            borderTop:'1px solid #F0F4FA',background:'#FAFBFF'}}>
-            {doneC} z {members.length} splnilo
-          </div>
-        </div>
-      )}
+      {open&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:500,background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',boxShadow:'0 8px 28px rgba(30,75,143,.18)',minWidth:210,maxHeight:280,overflowY:'auto'}}>
+        {members.map(id=>{const c2=comp[id]||{};const u=users.find(x=>x.id===id)||{};
+          return<div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',fontSize:12,background:c2.done?'#F0FDF4':'#fff',borderBottom:'1px solid #F8FAFD'}}>
+            <Avatar uid={id} users={users} size={18}/>
+            <span style={{flex:1}}>{(u.name||id).split(' ').pop()}</span>
+            {c2.done?<span style={{color:'#2A9D6F',fontWeight:700}}>✓</span>:<span style={{color:'#C0C8D8'}}>—</span>}
+          </div>;})}
+        <div style={{padding:'5px 12px',fontSize:11,color:'#8892B0',borderTop:'1px solid #F0F4FA'}}>{done} z {members.length} splnilo</div>
+      </div>}
     </div>
   );
 }
 
-function Toast({msg, type, onClose}) {
-  useEffect(()=>{const t=setTimeout(onClose,3200);return()=>clearTimeout(t);},[]);
-  const bg = type==='ok'?'#2A9D6F':type==='err'?'#DC2626':'#1E4B8F';
-  return <div style={{position:'fixed',bottom:22,right:22,background:bg,color:'#fff',padding:'11px 18px',borderRadius:10,fontSize:13,fontWeight:500,boxShadow:'0 4px 20px rgba(0,0,0,.18)',zIndex:999,animation:'toastIn .3s ease both'}}>{msg}</div>;
-}
-
-function Modal({title, onClose, children, footer, maxWidth=520}) {
-  return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-    <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 24px 64px rgba(0,0,0,.18)',animation:'fadeIn .2s ease both'}}>
-      <div style={{padding:'18px 22px 14px',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+function Modal({title,onClose,children,footer,maxWidth=560}){
+  return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.42)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,maxHeight:'92vh',overflowY:'auto',boxShadow:'0 24px 64px rgba(0,0,0,.2)',animation:'fadeIn .18s ease both'}}>
+      <div style={{padding:'16px 22px 13px',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{fontSize:16,fontWeight:700}}>{title}</div>
-        <button onClick={onClose} style={{width:26,height:26,borderRadius:'50%',border:'none',background:'#F0F4FA',cursor:'pointer',fontSize:14,color:'#4A5278'}}>✕</button>
+        <button type="button" onClick={onClose} style={{width:26,height:26,borderRadius:'50%',border:'none',background:'#F0F4FA',cursor:'pointer',fontSize:14,color:'#4A5278'}}>✕</button>
       </div>
       <div style={{padding:'18px 22px'}}>{children}</div>
-      {footer && <div style={{padding:'14px 22px',borderTop:'1px solid #E2E6F0',display:'flex',justifyContent:'flex-end',gap:8}}>{footer}</div>}
+      {footer&&<div style={{padding:'13px 22px',borderTop:'1px solid #E2E6F0',display:'flex',justifyContent:'flex-end',gap:8}}>{footer}</div>}
     </div>
   </div>;
 }
 
-function Field({label, children}) {
-  return <div style={{marginBottom:14}}>
-    <label style={{fontSize:12,fontWeight:600,color:'#4A5278',marginBottom:6,display:'block',letterSpacing:'.04em'}}>{label}</label>
+function Field({label,hint,children}){
+  return<div style={{marginBottom:13}}>
+    <label style={{fontSize:12,fontWeight:600,color:'#4A5278',marginBottom:5,display:'block',letterSpacing:'.03em'}}>{label}</label>
+    {hint&&<div style={{fontSize:11,color:'#8892B0',marginBottom:5}}>{hint}</div>}
     {children}
   </div>;
 }
 
-function Row2({children}) {
-  return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:11}}>{children}</div>;
+function Row2({children}){return<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>{children}</div>}
+
+function Toast({msg,type,onClose}){
+  useEffect(()=>{const t=setTimeout(onClose,3200);return()=>clearTimeout(t)},[]);
+  const bg=type==='ok'?'#2A9D6F':type==='err'?'#DC2626':'#1E4B8F';
+  return<div style={{position:'fixed',bottom:22,right:22,background:bg,color:'#fff',padding:'11px 18px',borderRadius:10,fontSize:13,fontWeight:500,boxShadow:'0 4px 20px rgba(0,0,0,.2)',zIndex:999,animation:'toastIn .3s ease both'}}>{msg}</div>;
 }
 
-// ═══════════════════════════════════
-// RESP SELECTOR
-// ═══════════════════════════════════
-function RespSelector({value, onChange, users, groups}) {
-  const nonDir = users.filter(u=>u.role!=='r');
-  const [mode, setMode] = useState(value.type==='group'?'group':'persons');
-  const [selGroup, setSelGroup] = useState(value.type==='group'?value.val:(groups[0]?.id||''));
-  const [selPersons, setSelPersons] = useState(
-    value.type==='persons' ? (value.val||'').split(',').filter(Boolean) :
-    value.type==='single' ? [value.val].filter(Boolean) : []
-  );
+function SectionCard({title,icon,children,action}){
+  return<div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',marginBottom:14,overflow:'hidden'}}>
+    <div style={{padding:'11px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:7}}>{icon&&<span>{icon}</span>}{title}</div>
+      {action}
+    </div>
+    <div style={{padding:'14px 18px'}}>{children}</div>
+  </div>;
+}
 
+// ═══ RESP SELECTOR ═══
+function RespSelector({value,onChange,users,groups}){
+  const nonDir=users.filter(u=>u.role!=='r');
+  const [mode,setMode]=useState(value.type==='group'?'group':'persons');
+  const [selGroup,setSelGroup]=useState(value.type==='group'?value.val:(groups[0]?.id||''));
+  const [selPersons,setSelPersons]=useState(
+    value.type==='persons'?(value.val||'').split(',').filter(Boolean):
+    value.type==='single'?[value.val].filter(Boolean):[]
+  );
   useEffect(()=>{
-    if (mode==='group') onChange({type:'group',val:selGroup});
-    else {
-      if (selPersons.length===1) onChange({type:'single',val:selPersons[0]});
+    if(mode==='group') onChange({type:'group',val:selGroup});
+    else{
+      if(selPersons.length===1) onChange({type:'single',val:selPersons[0]});
       else onChange({type:'persons',val:selPersons.join(',')});
     }
   },[mode,selGroup,selPersons]);
-
-  const togglePerson = (id) => setSelPersons(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
-  const preview = mode==='group' ? (groups.find(g=>g.id===selGroup)?.name||'—') :
+  const toggleP=id=>setSelPersons(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+  const preview=mode==='group'?(groups.find(g=>g.id===selGroup)?.name||'—'):
     selPersons.map(id=>users.find(u=>u.id===id)?.name?.split(' ').pop()||id).join(', ')||'—';
-
-  return <div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:12}}>
-    <div style={{display:'flex',gap:6,marginBottom:10}}>
-      {['group','persons'].map(m=><button key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'7px 8px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
-        {m==='group'?'👥 Skupina':'👤 Konkrétne osoby'}
+  return<div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:11}}>
+    <div style={{display:'flex',gap:6,marginBottom:9}}>
+      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'6px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
+        {m==='group'?'👥 Skupina':'👤 Osoby'}
       </button>)}
     </div>
-    {mode==='group' ? (
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-        {groups.map(g=>{
-          const cnt = (g.memberIds||'').split(',').filter(Boolean).length;
-          const on = g.id===selGroup;
-          return <div key={g.id} onClick={()=>setSelGroup(g.id)} style={{border:'1.5px solid',borderColor:on?'#1E4B8F':'#E2E6F0',background:on?'#EEF3FC':'#fff',borderRadius:9,padding:'8px 10px',cursor:'pointer'}}>
-            <div style={{fontSize:12,fontWeight:600,color:on?'#1E4B8F':'#1a1f36'}}>{g.name}</div>
-            <div style={{fontSize:11,color:on?'#3B6DB5':'#8892B0',marginTop:2}}>{cnt} {cnt===1?'osoba':'osôb'}</div>
-          </div>;
-        })}
-      </div>
-    ) : (
-      <div>{nonDir.map(u=>{
-        const on = selPersons.includes(u.id);
-        const gIds = (u.groupIds||'').split(',');
-        const tag = gIds.includes('teachers-1-4')?'1.–4.':gIds.includes('teachers-5-9')?'5.–9.':'';
-        return <label key={u.id} style={{display:'flex',alignItems:'center',gap:9,padding:'7px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
-          <input type="checkbox" checked={on} onChange={()=>togglePerson(u.id)} style={{width:15,height:15,accentColor:'#1E4B8F',flexShrink:0}}/>
-          <Avatar uid={u.id} users={users} size={24}/>
-          <span style={{fontSize:13,fontWeight:500,flex:1}}>{u.name}</span>
-          {tag && <span style={{fontSize:11,color:'#8892B0'}}>{tag}</span>}
-        </label>;
-      })}</div>
-    )}
-    <div style={{marginTop:10,padding:'7px 10px',background:'#fff',borderRadius:8,border:'1px solid #E2E6F0',fontSize:12,color:'#4A5278'}}>
+    {mode==='group'?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+      {groups.map(g=>{const on=g.id===selGroup;return<div key={g.id} onClick={()=>setSelGroup(g.id)} style={{border:'1.5px solid',borderColor:on?'#1E4B8F':'#E2E6F0',background:on?'#EEF3FC':'#fff',borderRadius:8,padding:'7px 10px',cursor:'pointer'}}>
+        <div style={{fontSize:12,fontWeight:600,color:on?'#1E4B8F':'#1a1f36'}}>{g.name}</div>
+        <div style={{fontSize:11,color:'#8892B0'}}>{(g.memberIds||'').split(',').filter(Boolean).length} členov</div>
+      </div>;})}
+    </div>:<div style={{maxHeight:180,overflowY:'auto'}}>
+      {nonDir.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
+        <input type="checkbox" checked={on} onChange={()=>toggleP(u.id)} style={{width:14,height:14,accentColor:'#1E4B8F',flexShrink:0}}/>
+        <Avatar uid={u.id} users={users} size={20}/>
+        <span style={{fontSize:12,flex:1}}>{u.name}</span>
+      </label>;})}
+    </div>}
+    <div style={{marginTop:9,padding:'6px 10px',background:'#fff',borderRadius:7,border:'1px solid #E2E6F0',fontSize:12,color:'#4A5278'}}>
       <strong style={{color:'#1E4B8F'}}>Zodpovedný/í: </strong>{preview}
     </div>
   </div>;
 }
 
-// ═══════════════════════════════════
-// LOGIN
-// ═══════════════════════════════════
-function Login({users, config, onLogin, dataReady}) {
-  const [uid, setUid] = useState('');
-  const [pwd, setPwd] = useState('');
-  const [err, setErr] = useState('');
-
-  const handle = () => {
-    if (!uid) { setErr('Vyberte meno.'); return; }
-    if (pwd !== PASSWORD) { setErr('Nesprávne heslo.'); return; }
-    if (!dataReady) { setErr('Počkajte, dáta sa načítavajú…'); return; }
-    onLogin(uid);
+// ═══ LOGIN ═══
+function Login({users,config,onLogin}){
+  const [uid2,setUid]=useState('');
+  const [pwd,setPwd]=useState('');
+  const [err,setErr]=useState('');
+  const handle=()=>{
+    if(!uid2){setErr('Vyberte meno.');return;}
+    if(pwd!==PASSWORD){setErr('Nesprávne heslo.');return;}
+    onLogin(uid2);
   };
-
-  return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
+  return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
     <div className="animate" style={{background:'#fff',borderRadius:20,padding:40,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-        <div style={{width:50,height:50,borderRadius:13,overflow:'hidden',border:'2px solid #E2E6F0'}}>
-          <img src="logo.png" style={{width:'100%',height:'100%',objectFit:'contain'}} alt="logo" onError={e=>e.target.style.display='none'}/>
+        <div style={{width:48,height:48,borderRadius:12,overflow:'hidden',border:'2px solid #E2E6F0'}}>
+          <img src="logo.png" style={{width:'100%',height:'100%',objectFit:'contain'}} alt="" onError={e=>e.target.style.display='none'}/>
         </div>
         <div>
           <div style={{fontSize:18,fontWeight:700}}>Školský manažér</div>
-          <div style={{fontSize:12,color:'#8892B0'}}>ZŠ s MŠ, Višňové 446</div>
+          <div style={{fontSize:12,color:'#8892B0'}}>{config.school||'ZŠ s MŠ, Višňové 446'}</div>
         </div>
       </div>
-      <div style={{fontSize:12,color:'#8892B0',marginBottom:24}}>Školský rok {config.sy||'2025/2026'}</div>
-
+      <div style={{fontSize:12,color:'#8892B0',marginBottom:22}}>Školský rok {config.sy||'2025/2026'}</div>
       <Field label="Prihlásiť sa ako">
-        <select value={uid} onChange={e=>{setUid(e.target.value);setErr('');}}>
+        <select value={uid2} onChange={e=>{setUid(e.target.value);setErr('');}}>
           <option value="">— Vyberte meno —</option>
           {users.map(u=><option key={u.id} value={u.id}>{u.name}{u.role==='r'?' (Riaditeľ)':''}</option>)}
         </select>
@@ -361,931 +267,650 @@ function Login({users, config, onLogin, dataReady}) {
       <Field label="Heslo">
         <input type="password" value={pwd} onChange={e=>{setPwd(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&handle()} placeholder="Zadajte heslo"/>
       </Field>
-      {err && <div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#DC2626',marginBottom:12}}>⚠ {err}</div>}
-      <button onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:dataReady?'linear-gradient(135deg,#1E4B8F,#2A9D6F)':'#94A3B8',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:dataReady?'pointer':'not-allowed',transition:'background .3s'}}>
-        {dataReady ? 'Prihlásiť sa →' : 'Načítavam dáta…'}
+      {err&&<div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:8,padding:'8px 12px',fontSize:13,color:'#DC2626',marginBottom:12}}>⚠ {err}</div>}
+      <button type="button" onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+        Prihlásiť sa →
       </button>
-      <div style={{marginTop:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:12,color:dataReady?'#2A9D6F':'#8892B0'}}>
-        {dataReady
-          ? <><span style={{fontSize:14}}>✓</span> Dáta načítané{users.length>0?' ('+users.length+' zamestnancov)':''}</>
-          : <><div style={{width:13,height:13,border:'2px solid #E2E6F0',borderTopColor:'#1E4B8F',borderRadius:'50%',animation:'spin .7s linear infinite'}}/> Pripájam sa k databáze…</>}
-      </div>
     </div>
   </div>;
 }
 
-// ═══════════════════════════════════
-// DASHBOARD
-// ═══════════════════════════════════
-function Dashboard({data, curUser, onAddTask, onEditTask, onRemind, onAddMeet, toast}) {
-  const {tasks, users, groups, meetings, config} = data;
-  const tot = tasks.length;
-  const done = tasks.filter(t=>taskStatus(t,groups)==='splnene').length;
-  const over = tasks.filter(t=>taskStatus(t,groups)==='po-termine').length;
-  const p = pct(done,tot);
-  const upcoming = [...tasks].filter(t=>taskStatus(t,groups)!=='splnene').sort((a,b)=>(a.dead||'').localeCompare(b.dead||'')).slice(0,6);
+// ═══════════════════════════════════════════
+// SEKCIA 1: PLÁN NA MESIAC
+// ═══════════════════════════════════════════
+function PlanView({data,curUser,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,toast}){
+  const {plans,meetings,tasks,users,groups,config}=data;
+  const isDir=curUser.role==='r';
+  const [month,setMonth]=useState(PLAN_MONTHS[0]);
+  const [actModal,setActModal]=useState(false);
+  const [dayModal,setDayModal]=useState(false);
+  const [taskModal,setTaskModal]=useState(null);
+  const [showPrint,setShowPrint]=useState(false);
 
-  return <div className="animate">
-    <div style={{fontSize:18,fontWeight:700,marginBottom:3}}>Dashboard</div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:18}}>{new Date().toLocaleDateString('sk-SK',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+  const pm=plans[month]||{published:false,days:[],activities:[]};
+  const monthMeets=meetings.filter(m=>(m.date||'').startsWith(month)).sort((a,b)=>a.date>b.date?1:-1);
+  const monthTasks=tasks.filter(t=>{const m=meetings.find(x=>x.id===t.mid);return m&&(m.date||'').startsWith(month);});
+  const approved=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
+  const pending=(pm.activities||[]).filter(a=>a.status==='pending');
+  const days=(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1);
 
-    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:13,marginBottom:22}}>
-      {[
-        {l:'Celkovo úloh',v:tot,c:'#1a1f36',s:'zo všetkých porád'},
-        {l:'Splnených',v:`${done} (${p}%)`,c:'#2A9D6F',bar:p},
-        {l:'V plnení',v:tasks.filter(t=>{const s=taskStatus(t,groups);return s==='otvorene'||s==='blizi-sa';}).length,c:'#1E4B8F',s:'otvorených'},
-        {l:'Po termíne',v:over,c:'#DC2626',s:over>0?'⚠ pozornosť!':'v poriadku',hl:over>0},
-      ].map((s,i)=><div key={i} style={{background:'#fff',borderRadius:14,padding:'16px 18px',border:`1px solid ${s.hl?'#FECACA':'#E2E6F0'}`,boxShadow:'0 1px 4px rgba(30,75,143,.06)'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:5}}>{s.l}</div>
-        <div style={{fontSize:26,fontWeight:700,color:s.c}}>{s.v}</div>
-        {s.s && <div style={{fontSize:12,marginTop:4,color:s.hl?'#DC2626':'#8892B0'}}>{s.s}</div>}
-        {s.bar!==undefined && <div style={{height:6,background:'#E2E6F0',borderRadius:3,marginTop:9}}><div style={{height:6,borderRadius:3,background:'#2A9D6F',width:s.bar+'%'}}/></div>}
-      </div>)}
-    </div>
-
-    <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:15}}>
-      <div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:11}}>
-          <div style={{fontSize:14,fontWeight:700}}>Úlohy – najbližší termín</div>
-          <Btn size="sm" onClick={onAddTask} variant="primary">+ Nová úloha</Btn>
-        </div>
-        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden',boxShadow:'0 1px 4px rgba(30,75,143,.06)'}}>
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead><tr style={{background:'#F8FAFD'}}>
-              {['Úloha','Zodpovedný/í','Termín','Stav',''].map((h,i)=><th key={i} style={{textAlign:'left',fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',padding:'9px 15px',borderBottom:'1px solid #E2E6F0'}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {upcoming.map(t=>{
-                const st = taskStatus(t,groups);
-                const members = getMembers(t.respType,t.respVal,groups);
-                const comp = t.completions||{};
-                const doneC = members.filter(id=>comp[id]?.done).length;
-                return <tr key={t.id} style={{borderBottom:'1px solid #F0F4FA'}} onMouseEnter={e=>e.currentTarget.style.background='#FAFBFF'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-                  <td style={{padding:'10px 15px'}}><div style={{fontSize:11,fontWeight:600,color:'#8892B0'}}>{t.no}</div><div style={{fontSize:13,fontWeight:500}}>{t.txt}</div></td>
-                  <td style={{padding:'10px 15px',fontSize:12}}>{respLabel(t.respType,t.respVal,users,groups)}</td>
-                  <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{t.taskType==='permanent'?<span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála</span>:t.taskType==='range'&&t.deadTo?fmt(t.dead)+' – '+fmt(t.deadTo):fmt(t.dead)}</td>
-                  <td style={{padding:'10px 15px'}}><Badge status={st} compStr={members.length>1?`${doneC}/${members.length}`:''}/></td>
-                  <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4}}>
-                    <Btn size="sm" onClick={()=>onEditTask(t)}>✎</Btn>
-                    <Btn size="sm" onClick={()=>onRemind(t)}>🔔</Btn>
-                  </div></td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div>
-        <div style={{fontSize:14,fontWeight:700,marginBottom:11}}>Plnenie zamestnancov</div>
-        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:15,marginBottom:13}}>
-          {users.filter(u=>u.role!=='r').map(u=>{
-            const my = tasks.filter(t=>getMembers(t.respType,t.respVal,groups).includes(u.id));
-            const dn = my.filter(t=>(t.completions||{})[u.id]?.done).length;
-            const ov = my.filter(t=>taskStatus(t,groups)==='po-termine'&&!(t.completions||{})[u.id]?.done).length;
-            const pp = pct(dn,my.length||1);
-            const col = ov>0?'#DC2626':pp>=100?'#2A9D6F':'#1E4B8F';
-            return <div key={u.id} style={{display:'flex',alignItems:'center',gap:9,marginBottom:13}}>
-              <Avatar uid={u.id} users={users} size={30}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.name}</div>
-                <div style={{height:5,background:'#E2E6F0',borderRadius:3,marginTop:4}}><div style={{height:5,borderRadius:3,background:col,width:pp+'%'}}/></div>
-              </div>
-              <div style={{textAlign:'right',flexShrink:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:col}}>{pp}%</div>
-                <div style={{fontSize:10,color:'#8892B0'}}>{dn}/{my.length}</div>
-              </div>
-            </div>;
-          })}
-        </div>
-        <Btn onClick={onAddMeet} variant="primary" style={{width:'100%',justifyContent:'center'}}>+ Nová porada</Btn>
-      </div>
-    </div>
-  </div>;
-}
-
-// ═══════════════════════════════════
-// TASKS
-// ═══════════════════════════════════
-function Tasks({data, onSave, onDelete, onRemind, toast}) {
-  const {tasks, users, groups, meetings} = data;
-  const [fCat, setFCat] = useState('all');
-  const [fMeet, setFMeet] = useState('all');
-  const [fPer, setFPer] = useState('all');
-  const [modal, setModal] = useState(null);
-
-  let filtered = tasks;
-  if (fCat!=='all') filtered = filtered.filter(t=>t.cat===fCat);
-  if (fMeet!=='all') filtered = filtered.filter(t=>t.mid===fMeet);
-  if (fPer!=='all') filtered = filtered.filter(t=>getMembers(t.respType,t.respVal,groups).includes(fPer));
-
-  return <div className="animate">
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-      <div style={{fontSize:18,fontWeight:700}}>Úlohy & uznesenia</div>
-      <Btn variant="primary" onClick={()=>setModal({})}>+ Nová úloha</Btn>
-    </div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:14}}>Správa uznesení z porád</div>
-
-    <div style={{display:'flex',gap:7,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
-      {['all','Pedagogika','Prevádzka','Administratíva'].map(c=><button key={c} onClick={()=>setFCat(c)} style={{padding:'6px 13px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:fCat===c?'#1E4B8F':'#E2E6F0',background:fCat===c?'#1E4B8F':'#fff',color:fCat===c?'#fff':'#4A5278',cursor:'pointer'}}>{c==='all'?'Všetky':c}</button>)}
-      <select value={fMeet} onChange={e=>setFMeet(e.target.value)} style={{padding:'6px 11px',border:'1.5px solid #E2E6F0',borderRadius:20,fontSize:12,color:'#4A5278',background:'#fff',width:'auto'}}>
-        <option value="all">Všetky porady</option>
-        {meetings.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-      </select>
-      <select value={fPer} onChange={e=>setFPer(e.target.value)} style={{padding:'6px 11px',border:'1.5px solid #E2E6F0',borderRadius:20,fontSize:12,color:'#4A5278',background:'#fff',width:'auto'}}>
-        <option value="all">Všetci</option>
-        {users.filter(u=>u.role!=='r').map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-      </select>
-    </div>
-
-    <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'auto'}}>
-      <table style={{width:'100%',borderCollapse:'collapse'}}>
-        <thead><tr style={{background:'#F8FAFD'}}>
-          {['Úloha','Zodpovedný/í','Plnenie','Kat.','Termín','Stav','Akcie'].map((h,i)=><th key={i} style={{textAlign:'left',fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',padding:'9px 15px',borderBottom:'1px solid #E2E6F0'}}>{h}</th>)}
-        </tr></thead>
-        <tbody>
-          {!filtered.length && <tr><td colSpan={7} style={{padding:'40px',textAlign:'center',color:'#8892B0'}}>Žiadne úlohy nezodpovedajú filtru.</td></tr>}
-          {filtered.map(t=>{
-            const st = taskStatus(t,groups);
-            const members = getMembers(t.respType,t.respVal,groups);
-            const comp = t.completions||{};
-            const doneC = members.filter(id=>comp[id]?.done).length;
-            return <tr key={t.id} style={{borderBottom:'1px solid #F0F4FA'}} onMouseEnter={e=>e.currentTarget.style.background='#FAFBFF'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-              <td style={{padding:'10px 15px',maxWidth:280}}>
-                <div style={{fontSize:11,fontWeight:600,color:'#8892B0'}}>{t.no}</div>
-                <div style={{fontSize:13,fontWeight:500}}>{t.txt}</div>
-                {t.note && <div style={{fontSize:11,color:'#8892B0',marginTop:2}}>💬 {t.note}</div>}
-              </td>
-              <td style={{padding:'10px 15px',fontSize:12}}>{respLabel(t.respType,t.respVal,users,groups)}</td>
-              <td style={{padding:'10px 15px'}}>
-                {members.length>1
-                  ? <MemberList members={members} comp={comp} users={users}/>
-                  : <Badge status={st}/>}
-              </td>
-              <td style={{padding:'10px 15px',fontSize:12,color:'#4A5278'}}>{t.cat}</td>
-              <td style={{padding:'10px 15px',fontSize:12,whiteSpace:'nowrap'}}>{t.taskType==='permanent'?<span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála</span>:t.taskType==='range'&&t.deadTo?fmt(t.dead)+' – '+fmt(t.deadTo):fmt(t.dead)}</td>
-              <td style={{padding:'10px 15px'}}><Badge status={st} compStr={members.length>1?`${doneC}/${members.length}`:''}/></td>
-              <td style={{padding:'10px 15px'}}><div style={{display:'flex',gap:4}}>
-                <Btn size="sm" onClick={()=>setModal(t)}>✎</Btn>
-                <Btn size="sm" onClick={()=>onRemind(t)}>🔔</Btn>
-                {st!=='splnene' && <Btn size="sm" variant="ok" onClick={async()=>{
-                  for(const id of members) if(!(comp[id]?.done)) await onSave({...t,completions:{...comp,[id]:{done:true,note:'',date:new Date().toISOString().split('T')[0]}}},true);
-                  toast('Splnené ✓','ok');
-                }}>✓</Btn>}
-                <Btn size="sm" variant="danger" onClick={()=>{if(confirm('Vymazať?'))onDelete(t.id);}}>✕</Btn>
-              </div></td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </div>
-
-    {modal!==null && <TaskModal task={modal} data={data} onSave={async(d)=>{await onSave(d);setModal(null);toast('Uložené.','ok');}} onClose={()=>setModal(null)}/>}
-  </div>;
-}
-
-function TaskModal({task, data, onSave, onClose}) {
-  const {meetings, users, groups} = data;
-  const isNew = !task.id;
-  const [txt, setTxt] = useState(task.txt||'');
-  const [cat, setCat] = useState(task.cat||'Pedagogika');
-  const [mid, setMid] = useState(task.mid||meetings[0]?.id||'');
-  const [taskType, setTaskType] = useState(task.taskType||'normal'); // normal | permanent | range
-  const [dead, setDead] = useState((task.dead||'').substring(0,10));
-  const [deadTo, setDeadTo] = useState((task.deadTo||'').substring(0,10));
-  const [note, setNote] = useState(task.note||'');
-  const [resp, setResp] = useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
-  const [saving, setSaving] = useState(false);
-
-  const save = async() => {
-    if (!txt.trim()) return;
-    setSaving(true);
-    const m = meetings.find(x=>x.id===mid);
-    const cnt = data.tasks.filter(t=>t.mid===mid).length + (isNew?1:0);
-    await onSave({
-      id: task.id||uid(), mid,
-      no: task.no||(m?.type||'U')+'-'+cnt,
-      txt:txt.trim(), cat, taskType,
-      dead: taskType==='permanent'?'':dead,
-      deadTo: taskType==='range'?deadTo:'',
-      note, respType:resp.type, respVal:resp.val,
-      completions: task.completions||{}
-    });
-    setSaving(false);
+  const printPlan=()=>{
+    const w=window.open('','_blank');
+    const schoolName=config.school||'ZŠ s MŠ, Višňové 446';
+    const dir=config.dir||'Riaditeľ';
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plán ${mlabel(month)}</title>
+    <style>body{font-family:Arial,sans-serif;margin:30px;font-size:12pt;color:#000}
+    h1{font-size:16pt;text-align:center;margin-bottom:4px}h2{font-size:13pt;margin:18px 0 6px;border-bottom:1.5px solid #000;padding-bottom:3px}
+    h3{font-size:12pt;text-align:center;color:#555;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px}
+    th,td{border:1px solid #ccc;padding:6px 9px;text-align:left;font-size:11pt}
+    th{background:#eee;font-weight:bold}.sig{margin-top:50px;display:flex;justify-content:flex-end}
+    .no-data{color:#999;font-style:italic}</style></head><body>
+    <h1>Plán práce na ${mlabel(month)}</h1>
+    <h3>${schoolName} · Školský rok ${config.sy||'2025/2026'}</h3>
+    <h2>A/ Štátne sviatky a pamätné dni</h2>
+    ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><strong>${d.name}</strong></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
+    ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><strong>${m.name}</strong></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    <h2>C/ Aktivity &amp; podujatia</h2>
+    ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${a.date?fmtS(a.date):'—'}</td><td><strong>${a.name}</strong></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    <h2>D/ Úlohy</h2>
+    ${monthTasks.length?`<table><tr><th>Č.</th><th>Úloha</th><th>Zodpovedný/á</th><th>Termín</th></tr>${monthTasks.map(t=>`<tr><td>${t.no}</td><td>${t.txt}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${t.dead?fmt(t.dead):(t.taskType==='permanent'?'Stála':'—')}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne úlohy.</p>'}
+    <div class="sig"><div><br/><br/>________________________________<br/>${dir}<br/>riaditeľ/ka školy</div></div>
+    </body></html>`;
+    w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
   };
 
-  return <Modal title={isNew?'Nová úloha':'Upraviť úlohu'} onClose={onClose}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť úlohu'}</Btn></>}>
-    <Field label="Text uznesenia / úlohy"><textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder="Popis úlohy…" style={{resize:'vertical'}}/></Field>
-    <Row2>
-      <Field label="Kategória"><select value={cat} onChange={e=>setCat(e.target.value)}>
-        {['Pedagogika','Prevádzka','Administratíva','Ostatné'].map(c=><option key={c}>{c}</option>)}
-      </select></Field>
-      <Field label="Porada"><select value={mid} onChange={e=>setMid(e.target.value)}>
-        {meetings.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-      </select></Field>
-    </Row2>
-    <Field label="Typ termínu">
-      <div style={{display:'flex',gap:6}}>
-        {[['normal','Konkrétny dátum'],['range','Rozsah (od–do)'],['permanent','Stála úloha']].map(([k,l])=><button key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
-      </div>
-    </Field>
-    {taskType==='normal' && <Field label="Termín splnenia"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
-    {taskType==='range' && <Row2><Field label="Od"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field><Field label="Do"><input type="date" value={deadTo} onChange={e=>setDeadTo(e.target.value)}/></Field></Row2>}
-    {taskType==='permanent' && <div style={{background:'#EEF3FC',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#1E4B8F',marginBottom:14}}>🔁 Stála úloha – bez konkrétneho termínu, trvale platná.</div>}
-    <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
-    <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Voliteľné…" style={{resize:'vertical'}}/></Field>
-  </Modal>;
-}
-
-// ═══════════════════════════════════
-// MEETINGS
-// ═══════════════════════════════════
-function Meetings({data, onSaveMeet, onSetView, toast}) {
-  const {meetings, tasks, groups} = data;
-  const [modal, setModal] = useState(false);
-
-  return <div className="animate">
+  return<div className="animate">
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-      <div style={{fontSize:18,fontWeight:700}}>Porady</div>
-      <Btn variant="primary" onClick={()=>setModal(true)}>+ Nová porada</Btn>
-    </div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:18}}>{meetings.length} porád evidovaných</div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:13}}>
-      {meetings.sort((a,b)=>b.date>a.date?1:-1).map(m=>{
-        const mt = tasks.filter(t=>t.mid===m.id);
-        const md = mt.filter(t=>taskStatus(t,groups)==='splnene').length;
-        const mo = mt.filter(t=>taskStatus(t,groups)==='po-termine').length;
-        return <div key={m.id} onClick={()=>onSetView('tasks')} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',borderLeft:'5px solid '+(MEET_BORDER[m.type]||'#93C5FD'),padding:18,cursor:'pointer',transition:'all .2s'}} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(30,75,143,.12)';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';}}>
-          <div style={{display:'inline-flex',padding:'3px 9px',borderRadius:6,fontSize:11,fontWeight:700,marginBottom:9,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F',border:'1px solid '+(MEET_BORDER[m.type]||'#93C5FD')}}>{m.type}</div>
-          <div style={{fontSize:15,fontWeight:700,marginBottom:5}}>{m.name}</div>
-          <div style={{fontSize:12,color:'#8892B0',marginBottom:11}}>📅 {fmt(m.date)}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div>
-          <div style={{display:'flex',gap:14,fontSize:12}}>
-            <div><div style={{fontSize:17,fontWeight:700}}>{mt.length}</div><div style={{color:'#8892B0'}}>uznesení</div></div>
-            <div><div style={{fontSize:17,fontWeight:700,color:'#2A9D6F'}}>{md}</div><div style={{color:'#8892B0'}}>splnených</div></div>
-            {mo>0 && <div><div style={{fontSize:17,fontWeight:700,color:'#DC2626'}}>{mo}</div><div style={{color:'#8892B0'}}>po termíne</div></div>}
-          </div>
-        </div>;
-      })}
-      <div onClick={()=>setModal(true)} style={{background:'#fff',borderRadius:14,border:'1.5px dashed #C7D5E8',padding:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:7,color:'#8892B0',minHeight:120}} onMouseEnter={e=>e.currentTarget.style.borderColor='#1E4B8F'} onMouseLeave={e=>e.currentTarget.style.borderColor='#C7D5E8'}>
-        <div style={{fontSize:26}}>+</div><div style={{fontSize:13,fontWeight:500}}>Nová porada</div>
-      </div>
-    </div>
-    {modal && <MeetModal data={data} onSave={async(d)=>{await onSaveMeet(d);setModal(false);toast('Porada pridaná.','ok');}} onClose={()=>setModal(false)}/>}
-  </div>;
-}
-
-function MeetModal({data, onSave, onClose}) {
-  const types = {PR:'Pedagogická rada',PP:'Pracovná porada',MZ:'Metodické združenie',PK:'Predmetová komisia',VED:'Vedenie školy',RR:'Rodičovská rada'};
-  const [type, setType] = useState('PR');
-  const [name, setName] = useState('Pedagogická rada 1/2025');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('13:30');
-  const [place, setPlace] = useState('zborovňa');
-  const [saving, setSaving] = useState(false);
-
-  const updateName = (t) => {
-    const cnt = data.meetings.filter(m=>m.type===t).length+1;
-    const yr = (data.config.sy||'2025/2026').split('/')[0];
-    setName(`${types[t]||t} ${cnt}/${yr}`);
-    setType(t);
-  };
-
-  const save = async() => {
-    if (!name||!date) return;
-    setSaving(true);
-    await onSave({id:uid(),name,date,type,time,place});
-    setSaving(false);
-  };
-
-  return <Modal title="Nová porada" onClose={onClose} maxWidth={460}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
-    <Field label="Typ"><select value={type} onChange={e=>updateName(e.target.value)}>
-      {Object.entries(types).map(([k,v])=><option key={k} value={k}>{v} ({k})</option>)}
-    </select></Field>
-    <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Field label="Dátum">
-      <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
-          <input type="checkbox" checked={!dateKnown} onChange={e=>setDateKnown(!e.target.checked)} style={{accentColor:'#1E4B8F'}}/> Dátum ešte nie je známy
-        </label>
-      </div>
-      {dateKnown && <input type="date" value={date} onChange={e=>setDate(e.target.value)}/>}
-      {!dateKnown && <div style={{background:'#EEF3FC',borderRadius:9,padding:'8px 12px',fontSize:13,color:'#1E4B8F'}}>Porada bude zaradená do plánu bez dátumu.</div>}
-    </Field>
-    <Row2>
-      <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
-      <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
-    </Row2>
-  </Modal>;
-}
-
-// ═══════════════════════════════════
-// PLAN
-// ═══════════════════════════════════
-function Plan({data, curUser, onSaveAct, onDeleteAct, onApproveAct, onSaveDay, onDeleteDay, onPublish, toast}) {
-  const {plans, meetings, tasks, users, groups, config} = data;
-  const isDir = curUser.role==='r';
-  const [month, setMonth] = useState(defaultPlanMonth());
-  const [actModal, setActModal] = useState(false);
-  const [dayModal, setDayModal] = useState(false);
-
-  const pm = plans[month]||{published:false,days:[],activities:[]};
-  const pendActs = (pm.activities||[]).filter(a=>a.status==='pending');
-  const approvedActs = (pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>a.date>b.date?1:-1);
-  const monthMeets = meetings.filter(m=>(m.date||'').startsWith(month)).sort((a,b)=>a.date>b.date?1:-1);
-  const monthTasks = tasks.filter(t=>{const m=meetings.find(x=>x.id===t.mid);return m&&(m.date||'').startsWith(month);});
-
-  const SectionCard = ({title, count, extra, onAdd, children}) => <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',marginBottom:14,overflow:'hidden'}}>
-    <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <div style={{fontSize:13,fontWeight:700}}>{title} <span style={{fontWeight:400,color:'#8892B0'}}>{count}</span>{extra}</div>
-      {onAdd && isDir && <Btn size="sm" onClick={onAdd}>+</Btn>}
-    </div>
-    <div style={{padding:'14px 18px'}}>{children}</div>
-  </div>;
-
-  const PRow = ({date, children, onDel}) => <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'8px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-    <div style={{fontWeight:600,color:'#1E4B8F',minWidth:100,flexShrink:0,fontSize:12}}>{date}</div>
-    <div style={{flex:1}}>{children}</div>
-    {isDir && onDel && <Btn size="sm" variant="danger" onClick={onDel} style={{padding:'2px 7px'}}>✕</Btn>}
-  </div>;
-
-  return <div className="animate">
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-      <div style={{fontSize:18,fontWeight:700}}>Plán práce na mesiac</div>
-      <div style={{display:'flex',gap:8}}>
-        {isDir && <><Btn size="sm" onClick={()=>setDayModal(true)}>+ Dôležitý deň</Btn></>}
+      <div style={{fontSize:18,fontWeight:700}}>📅 Plán práce na mesiac</div>
+      <div style={{display:'flex',gap:8}} className="no-print">
+        <Btn size="sm" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>
+        {isDir&&<Btn size="sm" onClick={()=>setDayModal(true)}>+ Sviatok / deň</Btn>}
         <Btn size="sm" variant="green" onClick={()=>setActModal(true)}>📬 Pridať aktivitu</Btn>
       </div>
     </div>
     <div style={{fontSize:13,color:'#8892B0',marginBottom:14}}>Školský rok {config.sy}</div>
 
-    <div style={{display:'flex',gap:7,marginBottom:18,flexWrap:'wrap'}}>
+    {/* Mesiac selector */}
+    <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
       {PLAN_MONTHS.map(k=>{
-        const hasPub = plans[k]?.published;
-        const on = month===k;
-        return <button key={k} onClick={()=>setMonth(k)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
+        const hasPub=plans[k]?.published,on=month===k;
+        return<button type="button" key={k} onClick={()=>setMonth(k)} style={{padding:'5px 13px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
           {MONTHS[parseInt(k.split('-')[1])-1].substring(0,3)}
         </button>;
       })}
     </div>
 
+    {/* Status bar */}
     <div style={{marginBottom:16,padding:'10px 16px',borderRadius:10,border:'1px solid',borderColor:pm.published?'#BBF7D0':'#FDE68A',background:pm.published?'#F0FDF4':'#FFFBEB',display:'flex',alignItems:'center',gap:10,fontSize:13}}>
-      {pm.published ? <><span>✅</span><strong>Plán {mlabel(month)} je zverejnený</strong></> : <><span>📝</span><strong>Plán {mlabel(month)} je v príprave</strong></>}
-      {isDir && <div style={{marginLeft:'auto'}}>
+      {pm.published?<><span>✅</span><strong>Plán {mlabel(month)} je zverejnený</strong></>:<><span>📝</span><strong>Plán {mlabel(month)} je v príprave</strong></>}
+      {isDir&&<div style={{marginLeft:'auto',display:'flex',gap:8}}>
         {pm.published
-          ? <Btn size="sm" onClick={()=>onPublish(month,false)}>Zrušiť zverejnenie</Btn>
-          : <Btn size="sm" variant="primary" onClick={()=>onPublish(month,true)}>📢 Zverejniť</Btn>}
+          ?<Btn size="sm" onClick={()=>onPublish(month,false)}>Zrušiť zverejnenie</Btn>
+          :<Btn size="sm" variant="primary" onClick={()=>onPublish(month,true)}>📢 Zverejniť plán</Btn>}
       </div>}
     </div>
 
+    {/* Pending schválenie pre riaditeľa */}
+    {isDir&&pending.length>0&&<div style={{marginBottom:14,background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,padding:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#B45309',marginBottom:9}}>🕐 Aktivity čakajúce na schválenie ({pending.length})</div>
+      {pending.map(a=><div key={a.id} style={{background:'#fff',border:'1px solid #E2E6F0',borderRadius:9,padding:'10px 14px',marginBottom:8}}>
+        <div style={{fontSize:13,fontWeight:600}}>{a.name}</div>
+        <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls||'—'} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
+        {a.note&&<div style={{fontSize:12,color:'#4A5278',marginBottom:7}}>💬 {a.note}</div>}
+        <div style={{display:'flex',gap:7}}>
+          <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓ Schváliť</Btn>
+          <Btn size="sm" variant="red" onClick={()=>onApproveAct(a.id,month,false)}>✕ Zamietnuť</Btn>
+        </div>
+      </div>)}
+    </div>}
+
+    {/* Hlavné 4 sekcie plánu */}
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
       <div>
-        <SectionCard title="A/ Štátne sviatky a pamätné dni" count={(pm.days||[]).length} onAdd={()=>setDayModal(true)}>
-          {!(pm.days||[]).length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Zatiaľ žiadne.</div>}
-          {(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1).map(d=><PRow key={d.id} date={fmtS(d.date)} onDel={()=>onDeleteDay(d.id,month)}>
-            <strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}
-          </PRow>)}
+        <SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓" action={isDir&&<Btn size="sm" onClick={()=>setDayModal(true)}>+</Btn>}>
+          {!days.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne.</div>}
+          {days.map(d=><div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:90,fontSize:12}}>{fmtS(d.date)}</div>
+            <div style={{flex:1}}><strong>{d.name}</strong>{d.note&&<div style={{fontSize:11,color:'#8892B0'}}>{d.note}</div>}</div>
+            {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteDay(d.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
+          </div>)}
         </SectionCard>
-        <SectionCard title="B/ Porady a zasadnutia" count={monthMeets.length}>
-          {!monthMeets.length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady v tomto mesiaci.</div>}
-          {monthMeets.map(m=><PRow key={m.id} date={fmtS(m.date)+(m.time?' '+m.time:'')}>
-            <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F',marginRight:6}}>{m.type}</span>
-            <strong>{m.name}</strong>{m.place&&<div style={{fontSize:12,color:'#8892B0'}}>{m.place}</div>}
-          </PRow>)}
+
+        <SectionCard title="B/ Porady a zasadnutia" icon="📋">
+          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady v tomto mesiaci.</div>}
+          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:MEET_TEXT[m.type]||'#1E4B8F',minWidth:90,fontSize:12}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
+            <div style={{flex:1}}>
+              <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:MEET_TEXT[m.type]||'#1E4B8F',marginRight:6}}>{m.type}</span>
+              <strong>{m.name}</strong>
+              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>{m.place}</div>}
+            </div>
+          </div>)}
         </SectionCard>
       </div>
       <div>
-        <SectionCard title="C/ Aktivity a podujatia" count={(pm.activities||[]).length} extra={pendActs.length>0&&<span style={{color:'#D97706',fontSize:11,marginLeft:6}}>({pendActs.length} čaká)</span>} onAdd={()=>setActModal(true)}>
-          {!(pm.activities||[]).length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity v tomto mesiaci.</div>}
-          {(pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
-            const isPending = a.status==='pending';
-            const dateStr = a.dateType==='range'&&a.dateTo ? fmtS(a.date)+' – '+fmtS(a.dateTo) : a.date ? fmtS(a.date) : 'celý mesiac';
-            const who = respLabel(a.respType||'single',a.respVal,users,groups);
-            return <div key={a.id} style={{padding:'9px 0',borderBottom:'1px solid #F0F4FA'}}>
-              <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap',marginBottom:3}}>
-                    <span style={{fontSize:12,fontWeight:600,color:'#1E4B8F',flexShrink:0}}>{dateStr}</span>
-                    {isPending && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 7px',borderRadius:20,flexShrink:0}}>čaká na schválenie</span>}
-                    <strong style={{fontSize:13}}>{a.name}</strong>
-                  </div>
-                  <div style={{fontSize:12,color:'#8892B0'}}>{a.cls} · {who}</div>
-                </div>
-                {isDir && <div style={{display:'flex',gap:4,flexShrink:0,paddingTop:2}}>
-                  {isPending && <>
-                    <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓</Btn>
-                    <Btn size="sm" variant="danger" onClick={()=>onApproveAct(a.id,month,false)}>✕</Btn>
-                  </>}
-                  <Btn size="sm" onClick={()=>onDeleteAct(a.id,month)}>🗑</Btn>
-                </div>}
-              </div>
-            </div>;
-          })}
-        </SectionCard>
-        <SectionCard title="D/ Úlohy z porád" count={monthTasks.length}>
-          {!monthTasks.length && <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy.</div>}
-          {monthTasks.map(t=><div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:12}}>
-            <span style={{color:'#8892B0',fontWeight:600,minWidth:60}}>{t.no}</span>
-            <span style={{flex:1}}>{t.txt}</span>
-            <Badge status={taskStatus(t,groups)}/>
+        <SectionCard title="C/ Aktivity a podujatia" icon="🎯" action={<Btn size="sm" variant="green" onClick={()=>setActModal(true)}>+ Pridať</Btn>}>
+          {!approved.length&&pending.length===0&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
+          {!isDir&&pending.map(a=><div key={a.id} style={{padding:'7px 10px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:11,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 7px',borderRadius:10,border:'1px solid #FDE68A'}}>🕐 čaká</span>
+              <strong style={{color:'#92400E'}}>{a.name}</strong>
+            </div>
+            <div style={{fontSize:11,color:'#B45309',marginTop:2}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls}</div>
           </div>)}
+          {approved.map(a=><div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:90,fontSize:12}}>{a.date?fmtS(a.date):'—'}</div>
+            <div style={{flex:1}}><strong>{a.name}</strong><div style={{fontSize:11,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div></div>
+            {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
+          </div>)}
+        </SectionCard>
+
+        <SectionCard title="D/ Úlohy" icon="✅">
+          {!monthTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy v tomto mesiaci.</div>}
+          {monthTasks.map(t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
+            <span style={{color:'#8892B0',fontWeight:600,minWidth:55,fontSize:11}}>{t.no}</span>
+            <span style={{flex:1}}>{t.txt}</span>
+            <Badge st={st}/>
+          </div>;})}
         </SectionCard>
       </div>
     </div>
 
-    {actModal && <ActModal month={month} data={data} curUser={curUser} onSave={d=>{onSaveAct(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
-    {dayModal && <DayModal month={month} onSave={async(d)=>{await onSaveDay(d);setDayModal(false);toast('Deň uložený.','ok');}} onClose={()=>setDayModal(false)}/>}
+    {actModal&&<ActModal month={month} data={data} curUser={curUser}
+      onSave={async d=>{await onSaveAct(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie 📬','ok');}}
+      onClose={()=>setActModal(false)}/>}
+    {dayModal&&<DayModal month={month} onSave={async d=>{await onSaveDay(d);setDayModal(false);toast('Deň uložený.','ok');}} onClose={()=>setDayModal(false)}/>}
   </div>;
 }
 
-function ActModal({month, data, curUser, onSave, onClose}) {
-  const {users, groups} = data;
-  const [name, setName] = useState('');
-  const [dateType, setDateType] = useState('exact'); // exact | range | month_only
-  const [date, setDate] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [cls, setCls] = useState('');
-  const [selMonth, setSelMonth] = useState(month||defaultPlanMonth());
-  const [note, setNote] = useState('');
-  const [resp, setResp] = useState({type:'single',val:curUser.id});
-  const save = () => {
-    if (!name) return;
-    if (dateType==='exact' && !date) return;
-    if (dateType==='range' && (!date||!dateTo)) return;
-    onSave({
-      id:'a'+uid(), name, cls:cls||'—',
-      date: dateType==='month_only'?'':date,
-      dateTo: dateType==='range'?dateTo:'',
-      dateType,
-      respType:resp.type, respVal:resp.val, note,
-      status:curUser.role==='r'?'approved':'pending', month:selMonth
-    });
+function ActModal({month,data,curUser,onSave,onClose}){
+  const {users,groups}=data;
+  const [name,setName]=useState('');
+  const [date,setDate]=useState('');
+  const [cls,setCls]=useState('');
+  const [note,setNote]=useState('');
+  const [selMonth,setSelMonth]=useState(month);
+  const [resp,setResp]=useState({type:'single',val:curUser.id});
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!name) return;
+    setSaving(true);
+    await onSave({id:'a'+uid(),date,name,cls:cls||'—',respType:resp.type,respVal:resp.val,note,status:curUser.role==='r'?'approved':'pending',month:selMonth});
+    setSaving(false);
   };
-
-  const dtLabels = {exact:'Presný dátum',range:'Rozsah dátumov',month_only:'Len mesiac (dátum neznámy)'};
-  return <Modal title="Pridať aktivitu do plánu" onClose={onClose}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save}>Odoslať</Btn></>}>
-    <Field label="Názov akcie"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Múzeum holokaustu"/></Field>
-    <Field label="Typ dátumu">
-      <div style={{display:'flex',gap:6}}>
-        {Object.entries(dtLabels).map(([k,l])=><button key={k} onClick={()=>setDateType(k)} style={{flex:1,padding:'7px 5px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:dateType===k?'#1E4B8F':'#E2E6F0',background:dateType===k?'#EEF3FC':'#fff',color:dateType===k?'#1E4B8F':'#4A5278',cursor:'pointer',textAlign:'center'}}>{l}</button>)}
-      </div>
-    </Field>
-    {dateType==='exact' && <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>}
-    {dateType==='range' && <Row2><Field label="Od"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="Do"><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></Field></Row2>}
-    {dateType==='month_only' && <div style={{background:'#EEF3FC',borderRadius:9,padding:'9px 12px',fontSize:13,color:'#1E4B8F',marginBottom:14}}>📅 Aktivita bude zaradená do mesiaca {mlabel(selMonth)} bez presného dátumu.</div>}
+  return<Modal title="Pridať aktivitu do plánu" onClose={onClose} footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Odosielam…':'Odoslať'}</Btn></>}>
+    <Field label="Názov aktivity / podujatia"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Bratislava"/></Field>
     <Row2>
+      <Field label="Dátum (ak je známy)"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
-      <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
     </Row2>
+    <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
     <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
     <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}}/></Field>
+    {curUser.role!=='r'&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F'}}>ℹ️ Aktivita bude odoslaná riaditeľovi na schválenie.</div>}
   </Modal>;
 }
 
-function DayModal({month, onSave, onClose}) {
-  const [date, setDate] = useState('');
-  const [name, setName] = useState('');
-  const [note, setNote] = useState('');
-  const [selMonth, setSelMonth] = useState(month);
-  const [saving, setSaving] = useState(false);
-  const save = async()=>{if(!date||!name)return;setSaving(true);await onSave({id:'d'+uid(),date,name,note,month:selMonth});setSaving(false);};
-  return <Modal title="Dôležitý deň" onClose={onClose} maxWidth={420}
-    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>Uložiť</Btn></>}>
+function DayModal({month,onSave,onClose}){
+  const [date,setDate]=useState('');
+  const [name,setName]=useState('');
+  const [note,setNote]=useState('');
+  const [selMonth,setSelMonth]=useState(month);
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{if(!date||!name)return;setSaving(true);await onSave({id:'d'+uid(),date,name,note,month:selMonth});setSaving(false);};
+  return<Modal title="Štátny sviatok / pamätný deň" onClose={onClose} maxWidth={440} footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>Uložiť</Btn></>}>
     <Row2>
       <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>{PLAN_MONTHS.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}</select></Field>
     </Row2>
     <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Deň Zeme"/></Field>
-    <Field label="Poznámka"><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Napr. Výchovne využiť na hodinách OV…"/></Field>
+    <Field label="Poznámka / výchovné využitie"><input value={note} onChange={e=>setNote(e.target.value)} placeholder="Napr. Výchovne využiť na hodinách OV…"/></Field>
   </Modal>;
 }
 
-// ═══════════════════════════════════
-// TEACHER VIEW
-// ═══════════════════════════════════
-function TeacherView({data, curUser, onMarkDone, onAddAct, toast}) {
-  const {tasks, meetings, plans, groups, users} = data;
-  const [tab, setTab] = useState('open');
-  const uid2 = curUser.id;
-  const my = tasks.filter(t=>getMembers(t.respType,t.respVal,groups).includes(uid2));
-  const open = my.filter(t=>!(t.completions||{})[uid2]?.done);
-  const done = my.filter(t=>(t.completions||{})[uid2]?.done);
-  const now = new Date().toISOString().split('T')[0];
-  const today = open.filter(t=>t.dead&&t.dead.substring(0,10)===now);
-  const [planMonth, setPlanMonth] = useState(defaultPlanMonth());
-  const mk = planMonth;
-  const pm = plans[mk]||{};
+// ═══════════════════════════════════════════
+// SEKCIA 2 & 3: PORADA VIEW (PP + PR)
+// ═══════════════════════════════════════════
+function MeetingView({data,curUser,type,onSaveMeet,onSaveTask,onDeleteTask,onMarkDone,toast}){
+  const {meetings,tasks,users,groups}=data;
+  const isDir=curUser.role==='r';
+  const myMeetings=meetings.filter(m=>m.type===type).sort((a,b)=>b.date>a.date?1:-1);
+  const [selId,setSelId]=useState(myMeetings[0]?.id||null);
+  const [meetModal,setMeetModal]=useState(false);
+  const [taskModal,setTaskModal]=useState(null);
 
-  const shown = tab==='open'
-    ? [...open].sort((a,b)=>(a.dead||'').localeCompare(b.dead||''))
-    : tab==='done' ? done : [];
+  const sel=myMeetings.find(m=>m.id===selId)||myMeetings[0]||null;
+  const myTasks=sel?tasks.filter(t=>t.mid===sel.id):[];
+  const typeName=MEET_NAMES[type]||type;
+  const typeColor=MEET_TEXT[type]||'#1E4B8F';
+  const typeBg=MEET_COLORS[type]||'#EEF3FC';
 
-  return <div className="animate">
-    <div style={{background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)',borderRadius:14,padding:'22px 26px',color:'#fff',display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-      <div>
-        <div style={{fontSize:20,fontWeight:700}}>Ahoj, {curUser.name.split(' ').slice(-1)[0]}! 👋</div>
-        <div style={{fontSize:13,opacity:.8,marginTop:4}}>{open.length>0?`Máš ${open.length} nedokončených úloh.`:'Všetky úlohy splnené! 🎉'}</div>
-      </div>
-      <div style={{display:'flex',gap:12}}>
-        {[{v:open.length,l:'Otvorené',c:open.length>0?'#FCD34D':'#6EE7B7'},{v:today.length,l:'Dnes končí',c:today.length>0?'#FCA5A5':'#6EE7B7'},{v:done.length,l:'Splnené',c:'#6EE7B7'}].map((m,i)=>(
-          <div key={i} style={{textAlign:'center',background:'rgba(255,255,255,.15)',borderRadius:10,padding:'12px 16px',minWidth:78}}>
-            <div style={{fontSize:28,fontWeight:700,color:m.c}}>{m.v}</div>
-            <div style={{fontSize:11,opacity:.75,marginTop:2}}>{m.l}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:0}}>
-      <div style={{display:'flex',borderBottom:'2px solid #E2E6F0'}}>
-        {[['open',`Moje úlohy (${open.length})`],['done',`Splnené (${done.length})`],['plan','Plán mesiaca']].map(([k,l])=>(
-          <div key={k} onClick={()=>setTab(k)} style={{padding:'9px 18px',fontSize:13,fontWeight:600,cursor:'pointer',color:tab===k?'#1E4B8F':'#8892B0',borderBottom:`2px solid ${tab===k?'#1E4B8F':'transparent'}`,marginBottom:-2}}>{l}</div>
-        ))}
-      </div>
-      <Btn size="sm" variant="green" onClick={onAddAct}>📬 Pridať aktivitu</Btn>
-    </div>
-    <div style={{borderTop:'none',marginBottom:18}}/>
-
-    {tab==='plan' ? (
-      <div>
-        <div style={{display:'flex',gap:7,marginBottom:16,flexWrap:'wrap'}}>
-          {PLAN_MONTHS.map(k=>{
-            const hasPub=plans[k]?.published; const on=planMonth===k;
-            return <button key={k} onClick={()=>setPlanMonth(k)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:on?'#1E4B8F':hasPub?'#2A9D6F':'#E2E6F0',background:on?(hasPub?'#2A9D6F':'#1E4B8F'):'#fff',color:on?'#fff':hasPub?'#2A9D6F':'#4A5278',cursor:'pointer'}}>
-              {MONTHS[parseInt(k.split('-')[1])-1].substring(0,3)}
-            </button>;
-          })}
-        </div>
-        {!pm.published && <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'9px 14px',fontSize:13,marginBottom:14,color:'#92400E'}}>📝 Plán na {mlabel(mk)} je v príprave – riaditeľ ho ešte nezverejnil.</div>}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-          {[
-            ['A/ Dôležité dni', (pm.days||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(d=><div key={d.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-              <span style={{fontWeight:600,color:'#1E4B8F',marginRight:8}}>{d.date?fmtS(d.date):mlabel(mk)}</span><strong>{d.name}</strong>{d.note&&<div style={{fontSize:12,color:'#8892B0'}}>{d.note}</div>}</div>)],
-            ['B/ Porady', meetings.filter(m=>{const d=m.date||''; return d.startsWith(mk)||(d===''&&m.planMonth===mk);}).map(m=>{
-              const bc=MEET_BORDER[m.type]||'#E2E6F0'; const tc=MEET_TEXT[m.type]||'#1E4B8F';
-              return <div key={m.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13,display:'flex',alignItems:'flex-start',gap:8}}>
-                <span style={{display:'inline-flex',padding:'2px 7px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_COLORS[m.type]||'#EEF3FC',color:tc,border:'1px solid '+bc,flexShrink:0}}>{m.type}</span>
-                <div><strong>{m.name}</strong><div style={{fontSize:12,color:'#8892B0'}}>{m.date?fmtS(m.date):'dátum bude upresnený'}{m.time?' · '+m.time:''}{m.place?' · '+m.place:''}</div></div>
-              </div>;})],
-            ['C/ Aktivity', (pm.activities||[]).sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1).map(a=>{
-              const isPend = a.status==='pending';
-              return <div key={a.id} style={{padding:'7px 0',borderBottom:'1px solid #F0F4FA',fontSize:13}}>
-                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                  <span style={{fontWeight:600,color:'#1E4B8F',fontSize:12,flexShrink:0}}>{a.date?fmtS(a.date):'celý mesiac'}</span>
-                  {isPend && <span style={{fontSize:10,fontWeight:700,background:'#FEF3C7',color:'#92400E',padding:'1px 6px',borderRadius:20}}>čaká na schválenie</span>}
-                  <strong>{a.name}</strong>
-                </div>
-                <div style={{fontSize:12,color:'#8892B0',marginTop:2}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
-              </div>;
-            })],
-          ].map(([title,rows],i)=><div key={i} style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',overflow:'hidden'}}>
-            <div style={{padding:'12px 18px',background:'#F8FAFD',borderBottom:'1px solid #E2E6F0',fontSize:13,fontWeight:700}}>{title}</div>
-            <div style={{padding:'14px 18px'}}>{rows.length ? rows : <div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne</div>}</div>
-          </div>)}
-        </div>
-      </div>
-    ) : (
-      !shown.length ? <div style={{textAlign:'center',padding:'44px',color:'#8892B0'}}>{tab==='open'?'🎉 Nemáš žiadne otvorené úlohy!':'📭 Zatiaľ žiadne splnené.'}</div> :
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
-        {shown.map(t=>{
-          const comp = (t.completions||{})[uid2];
-          const dead = (t.dead||'').substring(0,10);
-          const st = comp?.done?'splnene':dead<now?'po-termine':'otvorene';
-          const borderCol = {splnene:'#2A9D6F','po-termine':'#DC2626',otvorene:'#E2E6F0'}[st]||'#E2E6F0';
-          const members = getMembers(t.respType,t.respVal,groups);
-          const othersDone = members.filter(id=>id!==uid2&&(t.completions||{})[id]?.done).length;
-          const m = meetings.find(x=>x.id===t.mid);
-          return <TaskCard key={t.id} t={t} st={st} comp={comp} dead={dead} now={now} borderCol={borderCol} members={members} othersDone={othersDone} meetName={m?.name} uid={uid2} tab={tab} onMarkDone={onMarkDone}/>;
-        })}
-      </div>
-    )}
-  </div>;
-}
-
-function TaskCard({t, st, comp, dead, now, borderCol, members, othersDone, meetName, uid, tab, onMarkDone}) {
-  const [note, setNote] = useState(comp?.note||'');
-  const [saving, setSaving] = useState(false);
-  const deadRef2 = t.taskType==='range'&&t.deadTo?t.deadTo.substring(0,10):dead;
-  const diff = deadRef2 ? Math.round((new Date(deadRef2)-new Date(now.substring(0,10)))/(1000*60*60*24)) : null;
-  const deadLbl = t.taskType==='permanent' ? <span style={{color:'#6D28D9',fontWeight:600}}>🔁 Stála úloha</span>
-    : st==='splnene' ? <span style={{color:'#2A9D6F',fontWeight:600}}>✓ Splnené</span>
-    : t.taskType==='range'&&t.deadTo ? <span style={{color:'#4A5278'}}>📅 {dead} – {t.deadTo.substring(0,10)}</span>
-    : diff===null ? null : diff<0 ? <span style={{color:'#DC2626',fontWeight:600}}>⚠ Po termíne o {Math.abs(diff)} dní!</span>
-    : diff===0 ? <span style={{color:'#DC2626',fontWeight:600}}>⚠ Dnes končí!</span>
-    : diff<=5 ? <span style={{color:'#D97706',fontWeight:600}}>O {diff} dní ({deadRef2})</span>
-    : <span style={{color:'#8892B0'}}>Do {deadRef2}</span>;
-
-  return <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',borderLeft:`5px solid ${borderCol}`,padding:15,boxShadow:'0 1px 4px rgba(30,75,143,.06)'}}>
-    <div style={{fontSize:11,fontWeight:600,color:'#8892B0',marginBottom:5}}>{t.no}{meetName?' · '+meetName:''}</div>
-    <div style={{fontSize:14,fontWeight:600,marginBottom:5,lineHeight:1.4}}>{t.txt}</div>
-    {members.length>1 && <div style={{fontSize:12,color:'#8892B0',marginBottom:7}}>Skupina · {othersDone} z {members.length-1} kolegov splnilo</div>}
-    <div style={{fontSize:12,marginBottom:11}}>{deadLbl}</div>
-    {comp?.note && <div style={{fontSize:12,color:'#4A5278',background:'#F8FAFD',borderRadius:7,padding:'6px 9px',marginBottom:10}}>💬 {comp.note}</div>}
-    {tab==='open' && <>
-      <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Komentár k splneniu…" style={{resize:'vertical',minHeight:58,marginBottom:8,fontSize:12}}/>
-      <button onClick={async()=>{setSaving(true);await onMarkDone(t.id,uid,note);setSaving(false);}} disabled={saving} style={{width:'100%',padding:'9px',background:'#2A9D6F',color:'#fff',border:'none',borderRadius:9,fontFamily:'inherit',fontWeight:600,cursor:saving?'not-allowed':'pointer',opacity:saving?.7:1}}>
-        {saving?'Ukladám…':'✓ Označiť ako splnené'}
-      </button>
-    </>}
-    {tab==='done' && <div style={{fontSize:12,color:'#2A9D6F',fontWeight:600}}>✅ Splnené{comp?.date?' – '+comp.date:''}</div>}
-  </div>;
-}
-
-// ═══════════════════════════════════
-// SIDEBAR
-// ═══════════════════════════════════
-function Sidebar({view, setView, data}) {
-  const next = [...(data.meetings||[])].filter(m=>m.date>=new Date().toISOString().split('T')[0]).sort((a,b)=>a.date>b.date?1:-1)[0];
-  const navs = [['dashboard','🏠','Dashboard'],['plan','📅','Plán na mesiac'],['tasks','✅','Úlohy & uznesenia'],['meetings','📋','Porady'],['settings','⚙','Nastavenia']];
-  return <nav style={{width:220,background:'#fff',borderRight:'1px solid #E2E6F0',display:'flex',flexDirection:'column',padding:'12px 0',flexShrink:0}}>
-    <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',color:'#8892B0',padding:'10px 18px 4px',textTransform:'uppercase'}}>Prehľad</div>
-    {navs.slice(0,4).map(([k,ic,l])=><div key={k} onClick={()=>setView(k)} style={{display:'flex',alignItems:'center',gap:9,padding:'9px 18px',fontSize:13,fontWeight:view===k?700:500,color:view===k?'#1E4B8F':'#4A5278',cursor:'pointer',borderLeft:`3px solid ${view===k?'#1E4B8F':'transparent'}`,background:view===k?'#EEF3FC':'transparent',transition:'all .15s'}} onMouseEnter={e=>{if(view!==k){e.currentTarget.style.background='#EEF3FC';e.currentTarget.style.color='#1E4B8F';}}} onMouseLeave={e=>{if(view!==k){e.currentTarget.style.background='';e.currentTarget.style.color='#4A5278';}}}>
-      <span style={{fontSize:15,width:20,textAlign:'center'}}>{ic}</span>{l}
-    </div>)}
-    <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',color:'#8892B0',padding:'10px 18px 4px',textTransform:'uppercase'}}>Ostatné</div>
-    {[navs[4]].map(([k,ic,l])=><div key={k} onClick={()=>setView(k)} style={{display:'flex',alignItems:'center',gap:9,padding:'9px 18px',fontSize:13,fontWeight:view===k?700:500,color:view===k?'#1E4B8F':'#4A5278',cursor:'pointer',borderLeft:`3px solid ${view===k?'#1E4B8F':'transparent'}`,background:view===k?'#EEF3FC':'transparent'}} onMouseEnter={e=>{if(view!==k){e.currentTarget.style.background='#EEF3FC';}}} onMouseLeave={e=>{if(view!==k)e.currentTarget.style.background='';}}><span style={{fontSize:15,width:20,textAlign:'center'}}>{ic}</span>{l}</div>)}
-    <div style={{marginTop:'auto',padding:'14px 16px',borderTop:'1px solid #E2E6F0'}}>
-      <div style={{fontSize:10,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:8}}>Najbližšia porada</div>
-      {next ? <><div style={{fontSize:12,fontWeight:700,color:'#1E4B8F'}}>{fmt(next.date)}</div><div style={{fontSize:12,color:'#4A5278'}}>{next.name}</div></> : <div style={{fontSize:12,color:'#8892B0'}}>—</div>}
-    </div>
-  </nav>;
-}
-
-// ═══════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════
-function Settings({data, onSaveConfig, onSaveGroup, toast}) {
-  const {config, users, groups} = data;
-  const [sy, setSy] = useState(config.sy||'2025/2026');
-  const [school, setSchool] = useState(config.school||'');
-  const [dir, setDir] = useState(config.dir||'');
-  const [grpVals, setGrpVals] = useState(Object.fromEntries(groups.map(g=>[g.id,g.memberIds||''])));
-  const [saving, setSaving] = useState(false);
-
-  return <div className="animate">
-    <div style={{fontSize:18,fontWeight:700,marginBottom:3}}>Nastavenia</div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:18}}>Konfigurácia školy a skupín</div>
-
-    <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:22,marginBottom:16}}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:14,paddingBottom:10,borderBottom:'1px solid #E2E6F0'}}>🏫 Škola a školský rok</div>
-      <Row2>
-        <Field label="Školský rok"><select value={sy} onChange={e=>setSy(e.target.value)}>
-          {['2024/2025','2025/2026','2026/2027'].map(y=><option key={y}>{y}</option>)}
-        </select></Field>
-        <Field label="Riaditeľ"><input value={dir} onChange={e=>setDir(e.target.value)}/></Field>
-      </Row2>
-      <Field label="Názov školy"><input value={school} onChange={e=>setSchool(e.target.value)}/></Field>
-      <Btn variant="primary" onClick={async()=>{setSaving(true);await onSaveConfig({sy,school,dir});setSaving(false);toast('Nastavenia uložené.','ok');}}>
-        {saving?'Ukladám…':'Uložiť nastavenia'}
-      </Btn>
-    </div>
-
-    <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:22}}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:6,paddingBottom:10,borderBottom:'1px solid #E2E6F0'}}>👥 Skupiny zamestnancov</div>
-      <div style={{fontSize:13,color:'#4A5278',marginBottom:12}}>ID zamestnancov: {users.filter(u=>u.role!=='r').map(u=><code key={u.id} style={{background:'#F8FAFD',padding:'1px 5px',borderRadius:4,fontSize:11,marginRight:4}}>{u.id}</code>)}</div>
-      {groups.map(g=><div key={g.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'0.5px solid #E2E6F0'}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:600}}>{g.name}</div>
-          <div style={{fontSize:12,color:'#8892B0',marginTop:2}}>{(grpVals[g.id]||'').split(',').filter(Boolean).map(id=>users.find(u=>u.id===id)?.name||id).join(', ')||'—'}</div>
-        </div>
-        <input value={grpVals[g.id]||''} onChange={e=>setGrpVals(v=>({...v,[g.id]:e.target.value}))} style={{width:200,fontSize:12,padding:'6px 10px'}} placeholder="id1,id2"/>
-        <Btn size="sm" onClick={async()=>{await onSaveGroup({...g,memberIds:grpVals[g.id]||''});toast('Skupina uložená.','ok');}}>Uložiť</Btn>
-      </div>)}
-    </div>
-  </div>;
-}
-
-// ═══════════════════════════════════
-// REMIND MODAL
-// ═══════════════════════════════════
-function RemindModal({task, data, onClose}) {
-  const {users, groups, config} = data;
-  const members = getMembers(task.respType, task.respVal, groups);
-  const names = members.map(id=>users.find(u=>u.id===id)?.name||id).join(', ');
-  const dead = (task.dead||'').substring(0,10);
-  const txt = `Vážená/ý ${names},\n\ndovoľujem si Vás upozorniť na úlohu z porady:\n\n📌 Uznesenie: ${task.no}\n📝 Úloha: ${task.txt}\n📅 Termín: ${dead}\n${taskStatus(task,groups)==='po-termine'?'⚠ Úloha je PO TERMÍNE.\n':''}\nProsím o urýchlené splnenie alebo informáciu o aktuálnom stave.\n\nS pozdravom,\n${config.dir||'Riaditeľ'}\n${config.school||'ZŠ s MŠ Višňové 446'}`;
-
-  return <Modal title="🔔 Pripomienka" onClose={onClose}
-    footer={<><Btn onClick={onClose}>Zavrieť</Btn><Btn variant="primary" onClick={()=>{navigator.clipboard.writeText(txt);onClose();}}>📋 Kopírovať</Btn></>}>
-    <p style={{fontSize:13,color:'#4A5278',marginBottom:11}}>Skopírujte a odošlite e-mailom alebo cez Teams:</p>
-    <div style={{background:'#F8FAFD',border:'1px solid #E2E6F0',borderRadius:10,padding:13,fontSize:13,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{txt}</div>
-  </Modal>;
-}
-
-// ═══════════════════════════════════
-// MAIN APP
-// ═══════════════════════════════════
-function App() {
-  const [status, setStatus] = useState('loading'); // loading | login | app
-  const [data, setData] = useState(null);
-  const [dataReady, setDataReady] = useState(false);
-  const pendingSaves = React.useRef(0); // počet prebiehajúcich zápisov
-  const [curUser, setCurUser] = useState(null);
-  const [view, setView] = useState('dashboard');
-  const [toastMsg, setToastMsg] = useState(null);
-  const [remindTask, setRemindTask] = useState(null);
-  const [actModal, setActModal] = useState(false);
-
-  const toast = (msg, type='inf') => setToastMsg({msg, type});
-
-  useEffect(()=>{
-    // Okamžite zobraz login
-    const empty = {config:{sy:'2025/2026',school:'ZŠ s MŠ, Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}};
-    setData(empty);
-    setStatus('login');
-
-    // Po 10 sekundách povoľ prihlásenie aj keby dáta neprišli
-    const fallback = setTimeout(()=>setDataReady(true), 10000);
-
-    // Načítaj dáta zo servera na pozadí
-    apiGet('init').then(d=>{
-      clearTimeout(fallback);
-      setData(d);
-      setDataReady(true);
-    }).catch(e=>{
-      console.warn('Init zlyhalo:', e.message);
-      setDataReady(true); // pri chybe tiež povoľ login
-    });
-
-    // Polling každých 45 sekúnd
-    const poll = setInterval(()=>{
-      apiGet('').then(serverData=>{
-        setData(prev=>{
-          if(!prev) return serverData;
-          // Merge: zachovaj lokálne aktivity/dni ktoré server ešte nepozná
-          const merged = JSON.parse(JSON.stringify(serverData));
-          Object.keys(prev.plans||{}).forEach(mk=>{
-            if(!merged.plans) merged.plans={};
-            if(!merged.plans[mk]) merged.plans[mk]={published:false,days:[],activities:[]};
-            const localActs = prev.plans[mk]?.activities||[];
-            const srvActs = merged.plans[mk]?.activities||[];
-            const srvIds = new Set(srvActs.map(a=>a.id));
-            const missing = localActs.filter(a=>!srvIds.has(a.id));
-            if(missing.length) merged.plans[mk].activities=[...srvActs,...missing];
-          });
-          return merged;
-        });
-        setDataReady(true);
-      }).catch(()=>{});
-    }, 20000);
-
-    return ()=>{ clearInterval(poll); clearTimeout(fallback); };
-  },[]);
-
-  const refresh = async() => {
-    if(pendingSaves.current > 0) return;
-    try { const d = await apiGet(''); setData(d); setDataReady(true); } catch(e) {}
+  const printMeeting=()=>{
+    if(!sel) return;
+    const w=window.open('','_blank');
+    const isPA=type==='PR';
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${typeName}</title>
+    <style>body{font-family:Arial,sans-serif;margin:30px;font-size:12pt}
+    h1{font-size:16pt;text-align:center;margin-bottom:4px}h2{font-size:13pt;margin:18px 0 6px;border-bottom:1.5px solid #000;padding-bottom:3px}
+    h3{font-size:12pt;text-align:center;color:#555;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px}th,td{border:1px solid #ccc;padding:6px 9px;text-align:left;font-size:11pt}th{background:#eee}
+    ol{margin:0 0 0 18px;padding:0}li{margin-bottom:6px}.sig{margin-top:50px;display:flex;justify-content:space-between}
+    .no-data{color:#999;font-style:italic}</style></head><body>
+    <h1>${typeName}</h1><h3>${data.config.school||'ZŠ s MŠ, Višňové 446'} · ${fmt(sel.date)}${sel.time?' · '+sel.time:''}</h3>
+    <p><strong>Miesto:</strong> ${sel.place||'—'}</p>
+    <h2>Program</h2>
+    ${sel.program?`<ol>${(sel.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="no-data">Bez programu.</p>'}
+    <h2>${isPA?'Uznesenia':'Úlohy'}</h2>
+    ${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${t.dead?fmt(t.dead):(t.taskType==='permanent'?'Stála':'—')}</td></tr>`).join('')}</table>`:'<p class="no-data">Žiadne.</p>'}
+    <div class="sig">
+      <div><br/><br/>________________________________<br/>Zapisovateľ/ka</div>
+      <div><br/><br/>________________________________<br/>${data.config.dir||'Riaditeľ'}<br/>riaditeľ/ka školy</div>
+    </div></body></html>`;
+    w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
   };
 
-  const handleLogin = (uid) => {
-    const u = data.users.find(x=>x.id===uid);
+  return<div className="animate">
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+      <div style={{fontSize:18,fontWeight:700,display:'flex',alignItems:'center',gap:8}}>
+        <span style={{background:typeBg,color:typeColor,padding:'3px 10px',borderRadius:7,fontSize:14,fontWeight:700}}>{type}</span>
+        {typeName}
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        {sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
+        {isDir&&<Btn size="sm" variant="primary" onClick={()=>setMeetModal(true)}>+ Nová {typeName.split(' ')[0].toLowerCase()}</Btn>}
+      </div>
+    </div>
+
+    {!myMeetings.length&&<div style={{textAlign:'center',padding:'60px 0',color:'#8892B0'}}>
+      <div style={{fontSize:32,marginBottom:12}}>📋</div>
+      <div>Zatiaľ žiadna {typeName.toLowerCase()}.</div>
+      {isDir&&<div style={{marginTop:14}}><Btn variant="primary" onClick={()=>setMeetModal(true)}>+ Vytvoriť novú</Btn></div>}
+    </div>}
+
+    {myMeetings.length>0&&<div style={{display:'flex',gap:14}}>
+      {/* Zoznam porád */}
+      <div style={{width:240,flexShrink:0}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:8}}>Zoznam</div>
+        {myMeetings.map(m=><div key={m.id} onClick={()=>setSelId(m.id)}
+          style={{padding:'10px 13px',borderRadius:10,border:'1.5px solid',marginBottom:6,cursor:'pointer',
+            borderColor:selId===m.id?typeColor:'#E2E6F0',
+            background:selId===m.id?typeBg:'#fff',
+            transition:'all .15s'}}>
+          <div style={{fontSize:12,fontWeight:700,color:selId===m.id?typeColor:'#1a1f36'}}>{m.name}</div>
+          <div style={{fontSize:11,color:'#8892B0',marginTop:2}}>{fmt(m.date)}{m.time?' · '+m.time:''}</div>
+          <div style={{fontSize:11,color:'#8892B0'}}>{tasks.filter(t=>t.mid===m.id).length} {type==='PR'?'uznesení':'úloh'}</div>
+        </div>)}
+      </div>
+
+      {/* Detail porady */}
+      {sel&&<div style={{flex:1}}>
+        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:20,marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700}}>{sel.name}</div>
+              <div style={{fontSize:13,color:'#8892B0',marginTop:3}}>
+                📅 {fmt(sel.date)}{sel.time?' · 🕐 '+sel.time:''}{sel.place?' · 📍 '+sel.place:''}
+              </div>
+            </div>
+          </div>
+
+          {/* Program */}
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:7,borderBottom:'1px solid #F0F4FA',paddingBottom:6}}>
+              Program {type==='PR'?'pedagogickej rady':'pracovnej porady'}
+            </div>
+            {isDir
+              ?<ProgramEditor sel={sel} onSave={async prog=>{await onSaveMeet({...sel,program:prog});toast('Program uložený.','ok');}}/>
+              :<div style={{fontSize:13,lineHeight:1.8}}>
+                {sel.program
+                  ?sel.program.split('\n').filter(Boolean).map((l,i)=><div key={i} style={{display:'flex',gap:8,padding:'4px 0',borderBottom:'1px solid #F8FAFD'}}>
+                    <span style={{color:'#1E4B8F',fontWeight:700,minWidth:20}}>{i+1}.</span><span>{l}</span>
+                  </div>)
+                  :<span style={{color:'#8892B0',fontStyle:'italic'}}>Program ešte nie je zadaný.</span>}
+              </div>}
+          </div>
+        </div>
+
+        {/* Uznesenia / Úlohy */}
+        <div style={{background:'#fff',borderRadius:14,border:'1px solid #E2E6F0',padding:20}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{fontSize:14,fontWeight:700}}>{type==='PR'?'Uznesenia':'Úlohy'} ({myTasks.length})</div>
+            {isDir&&<Btn size="sm" variant="primary" onClick={()=>setTaskModal({})}>+ Pridať {type==='PR'?'uznesenie':'úlohu'}</Btn>}
+          </div>
+          {!myTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13,textAlign:'center',padding:'20px 0'}}>
+            Zatiaľ žiadne {type==='PR'?'uznesenia':'úlohy'}.
+          </div>}
+          <TaskTable tasks={myTasks} users={users} groups={groups} curUser={curUser}
+            onEdit={isDir?t=>setTaskModal(t):null}
+            onDelete={isDir?id=>onDeleteTask(id):null}
+            onMarkDone={(id,uid2,note)=>onMarkDone(id,uid2,note)}
+            type={type} toast={toast}/>
+        </div>
+      </div>}
+    </div>}
+
+    {meetModal&&<MeetModal type={type} data={data} onSave={async d=>{await onSaveMeet(d);setMeetModal(false);setSelId(d.id);toast(`${typeName} pridaná.`,'ok');}} onClose={()=>setMeetModal(false)}/>}
+    {taskModal!==null&&<TaskModal task={taskModal} meetId={sel?.id} type={type} data={data}
+      onSave={async d=>{await onSaveTask(d);setTaskModal(null);toast('Uložené.','ok');}}
+      onClose={()=>setTaskModal(null)}/>}
+  </div>;
+}
+
+function ProgramEditor({sel,onSave}){
+  const [text,setText]=useState(sel.program||'');
+  const [saving,setSaving]=useState(false);
+  const changed=text!==(sel.program||'');
+  return<div>
+    <textarea value={text} onChange={e=>setText(e.target.value)} rows={6}
+      placeholder={"1. Otvorenie\n2. Správa o prospechu\n3. Rôzne\n…každý bod na nový riadok"}
+      style={{resize:'vertical',marginBottom:8,fontSize:13,lineHeight:1.7}}/>
+    <Btn size="sm" variant="primary" disabled={!changed||saving} onClick={async()=>{setSaving(true);await onSave(text);setSaving(false);}}>
+      {saving?'Ukladám…':'💾 Uložiť program'}
+    </Btn>
+  </div>;
+}
+
+function TaskTable({tasks,users,groups,curUser,onEdit,onDelete,onMarkDone,type,toast}){
+  const [confirm2,setConfirm2]=useState(null);
+  const [doneModal,setDoneModal]=useState(null);
+  if(!tasks.length) return null;
+  return<div>
+    {tasks.map(t=>{
+      const st=taskStatus(t,groups);
+      const members=getMembers(t.respType,t.respVal,groups);
+      const comp=t.completions||{};
+      const isMyTask=members.includes(curUser.id);
+      const myComp=comp[curUser.id];
+      return<div key={t.id} style={{borderBottom:'1px solid #F0F4FA',padding:'11px 0'}}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+          <div style={{flex:1}}>
+            <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3}}>
+              <span style={{fontSize:11,fontWeight:700,color:'#8892B0'}}>{t.no}</span>
+              <Badge st={st}/>
+            </div>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:3}}>{t.txt}</div>
+            {t.note&&<div style={{fontSize:12,color:'#8892B0'}}>💬 {t.note}</div>}
+            <div style={{display:'flex',gap:12,marginTop:5,fontSize:12,color:'#4A5278',flexWrap:'wrap'}}>
+              <span>👤 {respLabel(t.respType,t.respVal,users,groups)}</span>
+              {t.dead&&<span>📅 {fmt(t.dead)}</span>}
+              {t.taskType==='permanent'&&<span style={{color:'#7C3AED'}}>🔁 Stála úloha</span>}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:5,flexShrink:0}}>
+            {isMyTask&&!myComp?.done&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
+            {onEdit&&<Btn size="sm" onClick={()=>onEdit(t)}>✎</Btn>}
+            {onDelete&&<Btn size="sm" variant="red" onClick={()=>setConfirm2(t.id)}>✕</Btn>}
+          </div>
+        </div>
+        {members.length>1&&<div style={{marginTop:7}}>
+          <MemberPill members={members} comp={comp} users={users}/>
+        </div>}
+      </div>;
+    })}
+    {confirm2&&<Modal title="Vymazať?" onClose={()=>setConfirm2(null)} maxWidth={360}
+      footer={<><Btn onClick={()=>setConfirm2(null)}>Zrušiť</Btn><Btn variant="red" onClick={()=>{onDelete(confirm2);setConfirm2(null);toast('Vymazané.');}}>Vymazať</Btn></>}>
+      <p style={{fontSize:14}}>Naozaj chcete vymazať túto {type==='PR'?'uznesenie':'úlohu'}?</p>
+    </Modal>}
+    {doneModal&&<DoneModal task={doneModal} curUser={curUser} onSave={async note=>{await onMarkDone(doneModal.id,curUser.id,note);setDoneModal(null);toast('Splnené! 🎉','ok');}} onClose={()=>setDoneModal(null)}/>}
+  </div>;
+}
+
+function DoneModal({task,curUser,onSave,onClose}){
+  const [note,setNote]=useState('');
+  const [saving,setSaving]=useState(false);
+  return<Modal title="Označiť ako splnené" onClose={onClose} maxWidth={440}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" disabled={saving} onClick={async()=>{setSaving(true);await onSave(note);}}>✓ Splniť</Btn></>}>
+    <div style={{fontSize:14,fontWeight:600,marginBottom:10}}>{task.txt}</div>
+    <Field label="Komentár (voliteľné)"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={3} placeholder="Popis ako bola úloha splnená…" style={{resize:'vertical'}}/></Field>
+  </Modal>;
+}
+
+function MeetModal({type,data,onSave,onClose}){
+  const typeName=MEET_NAMES[type]||type;
+  const [name,setName]=useState('');
+  const [date,setDate]=useState('');
+  const [time,setTime]=useState('13:30');
+  const [place,setPlace]=useState('zborovňa');
+  const [saving,setSaving]=useState(false);
+  const cnt=data.meetings.filter(m=>m.type===type).length+1;
+  const yr=(data.config.sy||'2025/2026').split('/')[0];
+  useEffect(()=>setName(`${typeName} ${cnt}/${yr}`),[]);
+  const save=async()=>{if(!name||!date)return;setSaving(true);await onSave({id:uid(),name,date,type,time,place,program:''});setSaving(false);};
+  return<Modal title={`Nová ${typeName.toLowerCase()}`} onClose={onClose} maxWidth={460}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
+    <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Row2>
+      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
+    </Row2>
+    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
+  </Modal>;
+}
+
+function TaskModal({task,meetId,type,data,onSave,onClose}){
+  const {meetings,users,groups}=data;
+  const isNew=!task.id;
+  const [txt,setTxt]=useState(task.txt||'');
+  const [cat,setCat]=useState(task.cat||'Pedagogika');
+  const [mid,setMid]=useState(task.mid||meetId||'');
+  const [taskType,setTaskType]=useState(task.taskType||'normal');
+  const [dead,setDead]=useState((task.dead||'').substring(0,10));
+  const [deadTo,setDeadTo]=useState((task.deadTo||'').substring(0,10));
+  const [note,setNote]=useState(task.note||'');
+  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
+  const [saving,setSaving]=useState(false);
+  const typeMeetings=meetings.filter(m=>m.type===type);
+  const allMeetings=typeMeetings.length?typeMeetings:meetings;
+  const save=async()=>{
+    if(!txt.trim()) return;
+    setSaving(true);
+    const m=meetings.find(x=>x.id===mid);
+    const cnt=data.tasks.filter(t=>t.mid===mid).length+(isNew?1:0);
+    await onSave({id:task.id||uid(),mid,no:task.no||(m?.type||type)+'-'+cnt,
+      txt:txt.trim(),cat,taskType,
+      dead:taskType==='permanent'?'':dead,
+      deadTo:taskType==='range'?deadTo:'',
+      note,respType:resp.type,respVal:resp.val,completions:task.completions||{}});
+    setSaving(false);
+  };
+  const label=type==='PR'?'uznesenie':'úlohu';
+  return<Modal title={isNew?`Nové ${label}`:`Upraviť ${label}`} onClose={onClose}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':`Uložiť ${label}`}</Btn></>}>
+    <Field label="Text uznesenia / úlohy"><textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={3} placeholder="Popis…" style={{resize:'vertical'}}/></Field>
+    <Row2>
+      <Field label="Kategória"><select value={cat} onChange={e=>setCat(e.target.value)}>
+        {['Pedagogika','Prevádzka','Administratíva','Ostatné'].map(c=><option key={c}>{c}</option>)}
+      </select></Field>
+      <Field label={type==='PR'?'Pedagogická rada':'Pracovná porada'}>
+        <select value={mid} onChange={e=>setMid(e.target.value)}>
+          {allMeetings.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      </Field>
+    </Row2>
+    <Field label="Typ termínu">
+      <div style={{display:'flex',gap:6}}>
+        {[['normal','Dátum'],['range','Rozsah'],['permanent','Stála']].map(([k,l])=><button type="button" key={k} onClick={()=>setTaskType(k)} style={{flex:1,padding:'6px 4px',borderRadius:8,fontSize:11,fontWeight:600,border:'1.5px solid',borderColor:taskType===k?'#1E4B8F':'#E2E6F0',background:taskType===k?'#EEF3FC':'#fff',color:taskType===k?'#1E4B8F':'#4A5278',cursor:'pointer'}}>{l}</button>)}
+      </div>
+    </Field>
+    {taskType==='normal'&&<Field label="Termín"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field>}
+    {taskType==='range'&&<Row2><Field label="Od"><input type="date" value={dead} onChange={e=>setDead(e.target.value)}/></Field><Field label="Do"><input type="date" value={deadTo} onChange={e=>setDeadTo(e.target.value)}/></Field></Row2>}
+    {taskType==='permanent'&&<div style={{background:'#EEF3FC',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#1E4B8F',marginBottom:13}}>🔁 Stála úloha – bez termínu, platí trvalo.</div>}
+    <Field label="Zodpovedný/í"><RespSelector value={resp} onChange={setResp} users={users} groups={groups}/></Field>
+    <Field label="Poznámka"><textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} style={{resize:'vertical'}} placeholder="Voliteľné…"/></Field>
+  </Modal>;
+}
+
+// ═══════════════════════════════════════════
+// HLAVNÁ APLIKÁCIA
+// ═══════════════════════════════════════════
+function App(){
+  const [status,setStatus]=useState('loading');
+  const [data,setData]=useState(null);
+  const [curUser,setCurUser]=useState(null);
+  const [view,setView]=useState('plan');
+  const [toast,setToast]=useState(null);
+
+  const showToast=(msg,type='inf')=>setToast({msg,type});
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const d=await apiGet('init');
+        setData(d);
+        setStatus('login');
+      }catch(e){
+        showToast('Chyba pripojenia: '+e.message,'err');
+        setTimeout(()=>{
+          setData({config:{sy:'2025/2026',school:'ZŠ s MŠ Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}});
+          setStatus('login');
+        },2000);
+      }
+    })();
+  },[]);
+
+  const refresh=async()=>{try{const d=await apiGet();setData(d);}catch(e){}};
+
+  const handleLogin=id=>{
+    const u=data.users.find(x=>x.id===id);
     setCurUser(u);
     setStatus('app');
   };
 
-  const saveTask = async(taskData, silent=false) => {
-    pendingSaves.current++;
-    setData(d=>({...d,tasks:d.tasks.find(t=>t.id===taskData.id)?d.tasks.map(t=>t.id===taskData.id?taskData:t):[...d.tasks,taskData]}));
-    try {
-      await apiPost('saveTask',{data:taskData});
-    } catch(e) {
-      if(!silent) toast('Chyba: '+e.message,'err');
-    } finally {
-      pendingSaves.current--;
-    }
-    if (!silent) toast('Úloha uložená.','ok');
+  // API actions
+  const saveTask=async t=>{
+    await apiPost('saveTask',{data:t});
+    setData(d=>({...d,tasks:d.tasks.find(x=>x.id===t.id)?d.tasks.map(x=>x.id===t.id?t:x):[...d.tasks,t]}));
   };
-
-  const deleteTask = async(id) => {
+  const deleteTask=async id=>{
     await apiPost('deleteTask',{id});
     setData(d=>({...d,tasks:d.tasks.filter(t=>t.id!==id)}));
-    toast('Vymazané.');
   };
-
-  const saveMeeting = async(m) => {
+  const saveMeeting=async m=>{
     await apiPost('saveMeeting',{data:m});
-    setData(d=>({...d,meetings:[...d.meetings,m]}));
+    setData(d=>({...d,meetings:d.meetings.find(x=>x.id===m.id)?d.meetings.map(x=>x.id===m.id?m:x):[...d.meetings,m]}));
   };
-
-  const markDone = async(taskId, uid, note) => {
-    const comp = {done:true,note,date:new Date().toISOString().split('T')[0]};
-    await apiPost('updateCompletion',{taskId,uid,done:true,note});
-    setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,completions:{...t.completions,[uid]:comp}}:t)}));
-    toast('Splnené! 🎉','ok');
+  const markDone=async(taskId,uid2,note)=>{
+    const comp={done:true,note,date:new Date().toISOString().split('T')[0]};
+    await apiPost('updateCompletion',{taskId,uid:uid2,done:true,note});
+    setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,completions:{...t.completions,[uid2]:comp}}:t)}));
   };
-
-  const saveActivity = async(act) => {
-    // 1. Pridaj do UI OKAMŽITE (optimistická aktualizácia)
-    setData(d=>{
-      const plans = JSON.parse(JSON.stringify(d.plans));
-      if(!plans[act.month]) plans[act.month]={published:false,days:[],activities:[]};
-      plans[act.month].activities = plans[act.month].activities.filter(a=>a.id!==act.id);
-      plans[act.month].activities.push(act);
-      return {...d, plans};
-    });
-
-    // 2. Odošli na server — NEprenastavuj data po odpovedi (aktivita by zmizla)
-    apiPost('saveActivity',{data:act}).catch(e=>{
-      toast('Chyba pri odosielaní: '+e.message,'err');
-    });
-    // Hotovo — aktivita zostane v UI, polling ju potvrdí pri ďalšom cykle
+  const saveActivity=async act=>{
+    await apiPost('saveActivity',{data:act});
+    setData(d=>{const plans={...d.plans};if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
+      plans[act.month]={...plans[act.month],activities:[...plans[act.month].activities,act]};return{...d,plans};});
   };
-
-  const deleteActivity = async(id, month) => {
+  const deleteActivity=async(id,month)=>{
     await apiPost('deleteActivity',{id,month});
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
-    toast('Aktivita vymazaná.');
   };
-
-  const approveActivity = async(id, month, approve) => {
-    const status = approve ? 'approved' : 'rejected';
+  const approveActivity=async(id,month,approve)=>{
+    const status=approve?'approved':'rejected';
     await apiPost('updateActivityStatus',{id,month,status});
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:approve?plans[month].activities.map(a=>a.id===id?{...a,status}:a):plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
-    toast(approve?'Schválené ✓':'Zamietnuté.',approve?'ok':'inf');
+    showToast(approve?'Schválené ✓':'Zamietnuté.',approve?'ok':'inf');
   };
-
-  const saveDay = async(day) => {
+  const saveDay=async day=>{
     await apiPost('saveDay',{data:day});
-    setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};plans[day.month]={...plans[day.month],days:[...plans[day.month].days,day]};return{...d,plans};});
+    setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
+      plans[day.month]={...plans[day.month],days:[...plans[day.month].days,day]};return{...d,plans};});
   };
-
-  const deleteDay = async(id, month) => {
+  const deleteDay=async(id,month)=>{
     await apiPost('deleteDay',{id,month});
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],days:plans[month].days.filter(x=>x.id!==id)};return{...d,plans};});
   };
-
-  const publishPlan = async(month, pub) => {
+  const publishPlan=async(month,pub)=>{
     await apiPost('publishPlan',{month,published:pub});
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],published:pub};return{...d,plans};});
-    toast(pub?'Plán zverejnený! 📢':'Zverejnenie zrušené.',pub?'ok':'inf');
+    showToast(pub?'Plán zverejnený! 📢':'Zverejnenie zrušené.',pub?'ok':'inf');
   };
 
-  const saveConfig = async(cfg) => {
-    await apiPost('saveConfig',{data:cfg});
-    setData(d=>({...d,config:cfg}));
-  };
+  if(status==='loading') return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
+      <div style={{background:'#fff',borderRadius:20,padding:40,textAlign:'center',boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:16}}>Školský manažér</div>
+        <Spinner/>
+        <div style={{fontSize:13,color:'#8892B0',marginTop:12}}>Pripájam sa…</div>
+      </div>
+    </div>
+  );
 
-  const saveGroup = async(g) => {
-    await apiPost('saveGroup',{data:g});
-    setData(d=>({...d,groups:d.groups.map(x=>x.id===g.id?g:x)}));
-  };
-
-  // Loading screen removed – login is now shown immediately
-
-  if (status==='login' || !curUser) return <>
-    {data && <Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin} dataReady={dataReady}/>}
-    {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
+  if(status==='login'||!curUser) return<>
+    {data&&<Login users={data.users||[]} config={data.config||{}} onLogin={handleLogin}/>}
+    {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
   </>;
 
-  const isDir = curUser.role==='r';
+  const isDir=curUser.role==='r';
+  const navItems=[
+    {k:'plan',icon:'📅',label:'Plán na mesiac'},
+    {k:'pp',icon:'📋',label:'Pracovná porada'},
+    {k:'pr',icon:'🎓',label:'Pedagogická rada'},
+  ];
 
-  return <>
+  return<>
     <div style={{display:'flex',flexDirection:'column',minHeight:'100vh'}}>
-      <header style={{background:'#fff',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',padding:'0 22px',height:58,gap:14,position:'sticky',top:0,zIndex:100}}>
+      {/* HEADER */}
+      <header className="no-print" style={{background:'#fff',borderBottom:'1px solid #E2E6F0',display:'flex',alignItems:'center',padding:'0 22px',height:56,gap:14,position:'sticky',top:0,zIndex:100}}>
         <div style={{display:'flex',alignItems:'center',gap:9,fontWeight:700,fontSize:14,color:'#1E4B8F',flexShrink:0}}>
-          <div style={{width:30,height:30,borderRadius:7,overflow:'hidden',border:'1px solid #E2E6F0'}}>
+          <div style={{width:28,height:28,borderRadius:6,overflow:'hidden',border:'1px solid #E2E6F0'}}>
             <img src="logo.png" style={{width:'100%',height:'100%',objectFit:'contain'}} alt="" onError={e=>e.target.style.display='none'}/>
           </div>
-          Školský manažér <span style={{fontWeight:400,color:'#8892B0',fontSize:12}}>ZŠ s MŠ, Višňové 446</span>
+          Školský manažér
+          <span style={{fontWeight:400,color:'#8892B0',fontSize:12}}>{data.config.school||'ZŠ s MŠ, Višňové 446'}</span>
         </div>
-        <div style={{width:1,height:26,background:'#E2E6F0'}}/>
-        <div style={{fontSize:12,fontWeight:600,background:'#EEF3FC',color:'#1E4B8F',padding:'3px 10px',borderRadius:20}}>{data.config.sy}</div>
+        <div style={{width:1,height:24,background:'#E2E6F0'}}/>
+        <div style={{fontSize:12,fontWeight:600,background:'#EEF3FC',color:'#1E4B8F',padding:'2px 9px',borderRadius:20}}>{data.config.sy}</div>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:500,color:'#4A5278'}}>
-            <Avatar uid={curUser.id} users={data.users} size={32}/>
+          <div style={{display:'flex',alignItems:'center',gap:7,fontSize:13,fontWeight:500,color:'#4A5278'}}>
+            <Avatar uid={curUser.id} users={data.users} size={30}/>
             <span>{curUser.name}</span>
-            <span style={{fontSize:11,color:'#8892B0'}}>({curUser.role==='r'?'Riaditeľ':'Učiteľ/ka'})</span>
+            <span style={{fontSize:11,color:'#8892B0'}}>({curUser.role==='r'?'Riaditeľ':'Zamestnanec'})</span>
           </div>
-          <div style={{width:1,height:26,background:'#E2E6F0'}}/>
+          <div style={{width:1,height:24,background:'#E2E6F0'}}/>
           <Btn size="sm" onClick={()=>{setCurUser(null);setStatus('login');}}>Odhlásiť</Btn>
         </div>
       </header>
 
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
-        {isDir && <Sidebar view={view} setView={setView} data={data}/>}
+        {/* SIDEBAR */}
+        <nav className="no-print" style={{width:220,background:'#fff',borderRight:'1px solid #E2E6F0',display:'flex',flexDirection:'column',padding:'16px 0',flexShrink:0}}>
+          <div style={{fontSize:10,fontWeight:700,letterSpacing:'.08em',color:'#8892B0',padding:'0 18px 8px',textTransform:'uppercase'}}>Hlavné sekcie</div>
+          {navItems.map(({k,icon,label})=>{
+            const on=view===k;
+            return<div key={k} onClick={()=>setView(k)} style={{display:'flex',alignItems:'center',gap:9,padding:'10px 18px',fontSize:13,fontWeight:on?700:500,color:on?'#1E4B8F':'#4A5278',cursor:'pointer',borderLeft:`3px solid ${on?'#1E4B8F':'transparent'}`,background:on?'#EEF3FC':'transparent',transition:'all .15s'}}
+              onMouseEnter={e=>{if(!on){e.currentTarget.style.background='#F8FAFD';e.currentTarget.style.color='#1E4B8F';}}}
+              onMouseLeave={e=>{if(!on){e.currentTarget.style.background='';e.currentTarget.style.color='#4A5278';}}}>
+              <span style={{fontSize:16}}>{icon}</span>{label}
+            </div>;
+          })}
+          <div style={{marginTop:'auto',padding:'14px 16px',borderTop:'1px solid #E2E6F0'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#8892B0',letterSpacing:'.05em',textTransform:'uppercase',marginBottom:7}}>Nasledujúca akcia</div>
+            {(()=>{
+              const today=new Date().toISOString().split('T')[0];
+              const next=[...data.meetings].filter(m=>m.date>=today).sort((a,b)=>a.date>b.date?1:-1)[0];
+              return next?<><div style={{fontSize:12,fontWeight:700,color:'#1E4B8F'}}>{fmt(next.date)}</div><div style={{fontSize:12,color:'#4A5278'}}>{next.name}</div></>:<div style={{fontSize:12,color:'#8892B0'}}>—</div>;
+            })()}
+          </div>
+        </nav>
+
+        {/* MAIN CONTENT */}
         <main style={{flex:1,overflowY:'auto',padding:22}}>
-          {isDir ? (
-            view==='dashboard' ? <Dashboard data={data} curUser={curUser} onAddTask={()=>setView('tasks')} onEditTask={()=>setView('tasks')} onRemind={setRemindTask} onAddMeet={()=>setView('meetings')} toast={toast}/> :
-            view==='plan' ? <Plan data={data} curUser={curUser} onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity} onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} toast={toast}/> :
-            view==='tasks' ? <Tasks data={data} onSave={saveTask} onDelete={deleteTask} onRemind={setRemindTask} toast={toast}/> :
-            view==='meetings' ? <Meetings data={data} onSaveMeet={saveMeeting} onSetView={setView} toast={toast}/> :
-            view==='settings' ? <Settings data={data} onSaveConfig={saveConfig} onSaveGroup={saveGroup} toast={toast}/> : null
-          ) : (
-            <TeacherView data={data} curUser={curUser} onMarkDone={markDone} onAddAct={()=>setActModal(true)} toast={toast}/>
-          )}
+          {view==='plan'&&<PlanView data={data} curUser={curUser}
+            onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
+            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} toast={showToast}/>}
+          {view==='pp'&&<MeetingView data={data} curUser={curUser} type="PP"
+            onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} toast={showToast}/>}
+          {view==='pr'&&<MeetingView data={data} curUser={curUser} type="PR"
+            onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} toast={showToast}/>}
         </main>
       </div>
     </div>
-
-    {remindTask && <RemindModal task={remindTask} data={data} onClose={()=>setRemindTask(null)}/>}
-    {actModal && <ActModal month={defaultPlanMonth()} data={data} curUser={curUser} onSave={d=>{saveActivity(d);setActModal(false);toast(curUser.role==='r'?'Aktivita pridaná.':'Odoslaná na schválenie. 📬','ok');}} onClose={()=>setActModal(false)}/>}
-    {toastMsg && <Toast {...toastMsg} onClose={()=>setToastMsg(null)}/>}
+    {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
   </>;
 }
 
-ReactDOM.render(<App/>, document.getElementById('root'));
+ReactDOM.render(<App/>,document.getElementById('root'));
 </script>
 </body>
 </html>
