@@ -72,6 +72,12 @@ async function apiPost(action,payload={}){
 // ═══ HELPERS ═══
 function uid(){return 'x'+Date.now()+Math.random().toString(36).slice(2,6)}
 function mlabel(k){if(!k)return'';const[y,m]=k.split('-');return(MONTHS[parseInt(m)-1]||'')+' '+y}
+function fmtActDate(a){
+  if(!a) return '—';
+  if(a.dateType==='month') return a.actMonth?mlabel(a.actMonth):'—';
+  if(a.dateType==='range'&&a.date&&a.dateTo) return fmtS(a.date)+' – '+fmtS(a.dateTo);
+  return a.date?fmtS(a.date):'—';
+}
 function fmt(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'numeric',year:'numeric'})}
 function fmtS(d){if(!d)return'';const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('sk-SK',{day:'numeric',month:'long'})}
 function getMembers(type,val,groups){
@@ -374,7 +380,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
     ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>C/ Aktivity &amp; podujatia</h2>
-    ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${a.date?fmtS(a.date):'—'}</td><td><b>${a.name}</b></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+    ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${fmtActDate(a)}</td><td><b>${a.name}</b></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>D/ Úlohy</h2>
     ${monthTasks.length?`<table><tr><th>Č.</th><th>Úloha</th><th>Zodpovedný/á</th><th>Termín</th></tr>${monthTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,month)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne úlohy.</p>'}
     <div class="sig"><br/><br/>________________________________<br/>riaditeľ školy</div>
@@ -469,10 +475,10 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
           {!isDir&&pending.map(a=><div key={a.id} style={{padding:'6px 9px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
             <span style={{fontSize:10,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 6px',borderRadius:9,border:'1px solid #FDE68A'}}>🕐 čaká</span>
             <strong style={{color:'#92400E',marginLeft:5}}>{a.name}</strong>
-            <div style={{fontSize:11,color:'#B45309'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls}</div>
+            <div style={{fontSize:11,color:'#B45309'}}>{fmtActDate(a)||'bez dátumu'} · {a.cls}</div>
           </div>)}
           {approved.map(a=><div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{a.date?fmtS(a.date):'—'}</div>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtActDate(a)}</div>
             <div style={{flex:1}}><strong>{a.name}</strong><div style={{fontSize:11,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div></div>
             {isDir&&<div style={{display:'flex',gap:4}}>
               <Btn size="sm" onClick={()=>setActModal(a)} style={{padding:'2px 7px'}}>✎</Btn>
@@ -571,26 +577,61 @@ function ActModal({existing,month,data,curUser,planMonths,onSave,onClose}){
   const {users,groups}=data;
   const isEdit=!!existing?.id;
   const [name,setName]=useState(existing?.name||'');
+  const [dateType,setDateType]=useState(existing?.dateType||'exact');
   const [date,setDate]=useState(existing?.date||'');
+  const [dateTo,setDateTo]=useState(existing?.dateTo||'');
+  const [actMonth,setActMonth]=useState(existing?.actMonth||month);
   const [cls,setCls]=useState(existing?.cls||'');
   const [note,setNote]=useState(existing?.note||'');
   const [selMonth,setSelMonth]=useState(existing?.month||month);
   const [resp,setResp]=useState({type:existing?.respType||'single',val:existing?.respVal||curUser.id});
   const [saving,setSaving]=useState(false);
+  const DATE_TYPES=[['exact','📅 Dátum'],['range','📆 Rozsah'],['month','🗓 Mesiac']];
   const save=async()=>{
     if(!name) return;
     setSaving(true);
-    await onSave({id:existing?.id||'a'+uid(),date,name,cls:cls||'—',respType:resp.type,respVal:resp.val,
+    await onSave({id:existing?.id||'a'+uid(),
+      dateType,
+      date:dateType==='month'?'':date,
+      dateTo:dateType==='range'?dateTo:'',
+      actMonth:dateType==='month'?actMonth:'',
+      name,cls:cls||'—',respType:resp.type,respVal:resp.val,
       note,status:isEdit?(existing?.status||'approved'):(curUser.role==='r'?'approved':'pending'),month:selMonth});
     setSaving(false);
   };
   return<Modal title={isEdit?'Upraviť aktivitu':'Pridať aktivitu'} onClose={onClose}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Ukladám…':isEdit?'Uložiť':'Odoslať'}</Btn></>}>
     <Field label="Názov aktivity"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Bratislava"/></Field>
-    <Row2>
-      <Field label="Dátum (ak je známy)"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+    <Field label="Typ termínu">
+      <div style={{display:'flex',gap:6}}>
+        {DATE_TYPES.map(([k,l])=><button type="button" key={k} onClick={()=>setDateType(k)}
+          style={{flex:1,padding:'7px 4px',borderRadius:9,fontSize:12,fontWeight:600,border:'1.5px solid',
+            borderColor:dateType===k?'#1E4B8F':'#E2E6F0',background:dateType===k?'#EEF3FC':'#fff',
+            color:dateType===k?'#1E4B8F':'#4A5278',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+          {l}
+        </button>)}
+      </div>
+    </Field>
+    {dateType==='exact'&&<Row2>
+      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
-    </Row2>
+    </Row2>}
+    {dateType==='range'&&<>
+      <Row2>
+        <Field label="Dátum od"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+        <Field label="Dátum do"><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}/></Field>
+      </Row2>
+      <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
+    </>}
+    {dateType==='month'&&<>
+      <Field label="Mesiac">
+        <select value={actMonth} onChange={e=>setActMonth(e.target.value)}>
+          {planMonths.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
+        </select>
+      </Field>
+      <Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>
+    </>}
+    {dateType!=='exact'&&dateType!=='range'&&dateType!=='month'&&<Field label="Pre koho (trieda)"><input value={cls} onChange={e=>setCls(e.target.value)} placeholder="9.A, všetci…"/></Field>}
     <Field label="Mesiac plánu"><select value={selMonth} onChange={e=>setSelMonth(e.target.value)}>
       {planMonths.map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
     </select></Field>
