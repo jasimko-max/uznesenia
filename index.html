@@ -349,6 +349,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
   const [taskModal,setTaskModal]=useState(null);
   const [meetModal,setMeetModal]=useState(false);
   const [editMeetModal,setEditMeetModal]=useState(null);
+  const [copyPlanModal,setCopyPlanModal]=useState(false);
 
   const pm=plans[month]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>(m.date||'').startsWith(month)).sort((a,b)=>a.date>b.date?1:-1);
@@ -393,6 +394,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
       <div style={{fontSize:18,fontWeight:700}}>📅 Plán práce na mesiac</div>
       <div style={{display:'flex',gap:7}} className="no-print">
         <Btn size="sm" variant="primary" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>
+        {isDir&&<Btn size="sm" variant="amber" onClick={()=>setCopyPlanModal(true)}>📋 Kopírovať plán</Btn>}
         {isDir&&<><Btn size="sm" variant="green" onClick={()=>setDayModal(true)}>+ Sviatok</Btn>
           <Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+ Porada</Btn>
           <Btn size="sm" variant="green" onClick={()=>setTaskModal({})}>+ Úloha</Btn></>}
@@ -533,6 +535,9 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {editMeetModal&&<MeetModal existing={editMeetModal} data={data} planMonths={planMonths} defaultMonth={month}
       onSave={async d=>{await onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
       onClose={()=>setEditMeetModal(null)}/>}
+    {copyPlanModal&&<CopyPlanModal sourceMonth={month} sourcePlan={pm} sourceTasks={tasks} data={data}
+      onSaveMeet={onSaveMeet} onSaveTask={onSaveTask} onSaveDay={onSaveDay} onSaveAct={onSaveAct}
+      onClose={()=>setCopyPlanModal(false)} toast={toast}/>}
   </div>;
 }
 
@@ -712,6 +717,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
   const [meetModal,setMeetModal]=useState(false);
   const [editMeetModal,setEditMeetModal]=useState(null);
   const [confirmDelMeet,setConfirmDelMeet]=useState(null);
+  const [copyModal,setCopyModal]=useState(false);
   const [taskModal,setTaskModal]=useState(null);
   const [doneModal,setDoneModal]=useState(null);
 
@@ -752,6 +758,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
       </div>
       <div style={{display:'flex',gap:7}}>
         {sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
+        {isDir&&sel&&<Btn size="sm" variant="amber" onClick={()=>setCopyModal(true)}>📋 Kopírovať</Btn>}
         {isDir&&sel&&<Btn size="sm" onClick={()=>setEditMeetModal(sel)}>✎ Upraviť</Btn>}
         {isDir&&sel&&<Btn size="sm" variant="red" onClick={()=>setConfirmDelMeet(sel.id)}>🗑 Vymazať</Btn>}
         {isDir&&<Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+ Nová</Btn>}
@@ -862,7 +869,149 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
       onSave={async d=>{await onSaveTask(d);setTaskModal(null);toast('Uložené.','ok');}}
       onClose={()=>setTaskModal(null)}/>}
     {doneModal&&<DoneModal task={doneModal} onSave={async note=>{await onMarkDone(doneModal.id,curUser.id,note);setDoneModal(null);toast('Splnené! 🎉','ok');}} onClose={()=>setDoneModal(null)}/>}
+    {copyModal&&sel&&<CopyMeetModal source={sel} sourceTasks={myTasks} type={type} data={data}
+      onSaveMeet={onSaveMeet} onSaveTask={onSaveTask}
+      onClose={()=>setCopyModal(false)} toast={toast}/>}
   </div>;
+}
+
+// ═══ KOPÍROVANIE PORADY ═══
+function CopyMeetModal({source,sourceTasks,type,data,onSaveMeet,onSaveTask,onClose,toast}){
+  const {meetings,config}=data;
+  const planMonths=getPlanMonths(config.sy);
+  const typeName=MEET_NAMES[type]||type;
+  const [copyProgram,setCopyProgram]=useState(true);
+  const [copyTasks,setCopyTasks]=useState(true);
+  const [resetDone,setResetDone]=useState(true);
+  const [name,setName]=useState('');
+  const [date,setDate]=useState('');
+  const [time,setTime]=useState(source.time||'13:30');
+  const [place,setPlace]=useState(source.place||'zborovňa');
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{
+    const cnt=meetings.filter(m=>m.type===type).length+1;
+    const yr=(config.sy||'2025/2026').split('/')[0];
+    setName(`${MEET_NAMES[type]} ${cnt}/${yr}`);
+  },[]);
+
+  const save=async()=>{
+    if(!name||!date){toast('Vyplňte názov a dátum.','err');return;}
+    setSaving(true);
+    const newMeet={id:uid(),name,date,type,time,place,
+      program:copyProgram?source.program:''};
+    await onSaveMeet(newMeet);
+    if(copyTasks&&sourceTasks.length){
+      for(const t of sourceTasks){
+        const newTask={...t,id:uid(),mid:newMeet.id,
+          completions:resetDone?{}:t.completions};
+        await onSaveTask(newTask);
+      }
+    }
+    setSaving(false);
+    toast(`Skopírované do "${name}" ✓`,'ok');
+    onClose();
+  };
+
+  return<Modal title={`📋 Kopírovať ${typeName.toLowerCase()}`} onClose={onClose} maxWidth={500}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Kopírujem…':'📋 Kopírovať'}</Btn></>}>
+    <div style={{background:'#EEF3FC',borderRadius:10,padding:'11px 14px',marginBottom:14,fontSize:13}}>
+      <div style={{fontWeight:700,color:'#1E4B8F',marginBottom:3}}>Zdroj: {source.name}</div>
+      <div style={{color:'#4A5278',fontSize:12}}>📅 {fmt(source.date)} · {sourceTasks.length} {type==='PR'?'uznesení':'úloh'}</div>
+    </div>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:8,textTransform:'uppercase',letterSpacing:'.04em'}}>Čo kopírovať</div>
+      {[
+        [copyProgram,setCopyProgram,'Program porady'],
+        [copyTasks,setCopyTasks,type==='PR'?'Uznesenia':'Úlohy'],
+      ].map(([val,set,lbl],i)=><label key={i} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
+        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
+        <span style={{fontSize:13,fontWeight:600,color:val?'#1E4B8F':'#4A5278'}}>{lbl}</span>
+        {i===1&&val&&<label style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}}>
+          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} style={{accentColor:'#1E4B8F'}}/>
+          Resetovať splnenie
+        </label>}
+      </div>)}
+    </div>
+    <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:8,textTransform:'uppercase',letterSpacing:'.04em'}}>Nová porada</div>
+    <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Row2>
+      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
+    </Row2>
+    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)}/></Field>
+  </Modal>;
+}
+
+// ═══ KOPÍROVANIE PLÁNU ═══
+function CopyPlanModal({sourceMonth,sourcePlan,sourceTasks,data,onSaveMeet,onSaveTask,onSaveDay,onSaveAct,onClose,toast}){
+  const {meetings,plans,config}=data;
+  const planMonths=getPlanMonths(config.sy);
+  const {days=[],activities=[]}=sourcePlan||{};
+  const approvedActs=activities.filter(a=>a.status==='approved');
+  const monthMeets=meetings.filter(m=>(m.date||'').startsWith(sourceMonth));
+  const [copyDays,setCopyDays]=useState(true);
+  const [copyMeets,setCopyMeets]=useState(true);
+  const [copyActs,setCopyActs]=useState(true);
+  const [copyTasks,setCopyTasks]=useState(true);
+  const [resetDone,setResetDone]=useState(true);
+  const [targetMonth,setTargetMonth]=useState(planMonths.find(m=>m!==sourceMonth)||planMonths[0]);
+  const [saving,setSaving]=useState(false);
+
+  const save=async()=>{
+    setSaving(true);
+    const offset=targetMonth!==sourceMonth?(new Date(targetMonth+'-15').getTime()-new Date(sourceMonth+'-15').getTime()):0;
+    const shiftDate=d=>{if(!d)return d;try{const dt=new Date(d);dt.setTime(dt.getTime()+offset);return dt.toISOString().split('T')[0];}catch{return d;}};
+
+    if(copyDays) for(const d of days) await onSaveDay({...d,id:'d'+uid(),month:targetMonth,date:shiftDate(d.date)});
+    if(copyMeets) for(const m of monthMeets){
+      const nm={...m,id:uid(),date:shiftDate(m.date)};
+      await onSaveMeet(nm);
+      if(copyTasks){
+        const mTasks=sourceTasks.filter(t=>t.mid===m.id);
+        for(const t of mTasks) await onSaveTask({...t,id:uid(),mid:nm.id,completions:resetDone?{}:t.completions});
+      }
+    }
+    if(copyActs) for(const a of approvedActs) await onSaveAct({...a,id:'a'+uid(),month:targetMonth,date:shiftDate(a.date),status:'approved'});
+    if(copyTasks){
+      const directTasks=sourceTasks.filter(t=>t.mid==='plan-'+sourceMonth);
+      for(const t of directTasks) await onSaveTask({...t,id:uid(),mid:'plan-'+targetMonth,deadMonth:t.deadMonth?targetMonth:t.deadMonth,completions:resetDone?{}:t.completions});
+    }
+    setSaving(false);
+    toast(`Plán ${mlabel(sourceMonth)} skopírovaný do ${mlabel(targetMonth)} ✓`,'ok');
+    onClose();
+  };
+
+  const items=[
+    [copyDays,setCopyDays,`A/ Sviatky (${days.length})`],
+    [copyMeets,setCopyMeets,`B/ Porady (${monthMeets.length})`],
+    [copyActs,setCopyActs,`C/ Aktivity (${approvedActs.length})`],
+    [copyTasks,setCopyTasks,`D/ Úlohy (${sourceTasks.filter(t=>t.mid==='plan-'+sourceMonth||monthMeets.some(m=>m.id===t.mid)).length})`],
+  ];
+
+  return<Modal title="📋 Kopírovať plán mesiaca" onClose={onClose} maxWidth={500}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Kopírujem…':'📋 Kopírovať'}</Btn></>}>
+    <div style={{background:'#EEF3FC',borderRadius:10,padding:'11px 14px',marginBottom:14,fontSize:13}}>
+      <div style={{fontWeight:700,color:'#1E4B8F'}}>Zdroj: Plán na {mlabel(sourceMonth)}</div>
+    </div>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:8,textTransform:'uppercase',letterSpacing:'.04em'}}>Čo kopírovať</div>
+      {items.map(([val,set,lbl],i)=><label key={i} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
+        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
+        <span style={{fontSize:13,fontWeight:600,color:val?'#1E4B8F':'#4A5278'}}>{lbl}</span>
+        {i===3&&val&&<label style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}}>
+          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} style={{accentColor:'#1E4B8F'}}/>
+          Resetovať splnenie
+        </label>}
+      </label>)}
+      <div style={{fontSize:11,color:'#8892B0',marginTop:6,padding:'0 4px'}}>💡 Dátumy sa automaticky posunú na cieľový mesiac.</div>
+    </div>
+    <Field label="Kopírovať do mesiaca">
+      <select value={targetMonth} onChange={e=>setTargetMonth(e.target.value)}>
+        {planMonths.filter(m=>m!==sourceMonth).map(k=><option key={k} value={k}>{mlabel(k)}</option>)}
+      </select>
+    </Field>
+  </Modal>;
 }
 
 function ProgramEditor({sel,onSave}){
