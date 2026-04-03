@@ -924,13 +924,13 @@ function CopyMeetModal({source,sourceTasks,type,data,onSaveMeet,onSaveTask,onClo
       {[
         [copyProgram,setCopyProgram,'Program porady'],
         [copyTasks,setCopyTasks,type==='PR'?'Uznesenia':'Úlohy'],
-      ].map(([val,set,lbl],i)=><label key={i} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
-        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
+      ].map(([val,set,lbl],i)=><div key={i} onClick={()=>set(!val)} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
+        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} onClick={e=>e.stopPropagation()} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
         <span style={{fontSize:13,fontWeight:600,color:val?'#1E4B8F':'#4A5278'}}>{lbl}</span>
-        {i===1&&val&&<label style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}}>
-          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} style={{accentColor:'#1E4B8F'}}/>
+        {i===1&&val&&<div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}} onClick={e=>{e.stopPropagation();setResetDone(r=>!r);}}>
+          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} onClick={e=>e.stopPropagation()} style={{accentColor:'#1E4B8F'}}/>
           Resetovať splnenie
-        </label>}
+        </div>}
       </div>)}
     </div>
     <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:8,textTransform:'uppercase',letterSpacing:'.04em'}}>Nová porada</div>
@@ -996,14 +996,14 @@ function CopyPlanModal({sourceMonth,sourcePlan,sourceTasks,data,onSaveMeet,onSav
     </div>
     <div style={{marginBottom:14}}>
       <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:8,textTransform:'uppercase',letterSpacing:'.04em'}}>Čo kopírovať</div>
-      {items.map(([val,set,lbl],i)=><label key={i} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
-        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
+      {items.map(([val,set,lbl],i)=><div key={i} onClick={()=>set(!val)} style={{display:'flex',alignItems:'center',gap:9,padding:'8px 10px',borderRadius:9,border:'1.5px solid',borderColor:val?'#1E4B8F':'#E2E6F0',background:val?'#EEF3FC':'#F8FAFD',cursor:'pointer',marginBottom:6}}>
+        <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)} onClick={e=>e.stopPropagation()} style={{width:15,height:15,accentColor:'#1E4B8F'}}/>
         <span style={{fontSize:13,fontWeight:600,color:val?'#1E4B8F':'#4A5278'}}>{lbl}</span>
-        {i===3&&val&&<label style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}}>
-          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} style={{accentColor:'#1E4B8F'}}/>
+        {i===3&&val&&<div onClick={e=>e.stopPropagation()} style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto',fontSize:12,color:'#8892B0',cursor:'pointer'}} onClick={e=>{e.stopPropagation();setResetDone(r=>!r);}}>
+          <input type="checkbox" checked={resetDone} onChange={e=>setResetDone(e.target.checked)} onClick={e=>e.stopPropagation()} style={{accentColor:'#1E4B8F'}}/>
           Resetovať splnenie
-        </label>}
-      </label>)}
+        </div>}
+      </div>)}
       <div style={{fontSize:11,color:'#8892B0',marginTop:6,padding:'0 4px'}}>💡 Dátumy sa automaticky posunú na cieľový mesiac.</div>
     </div>
     <Field label="Kopírovať do mesiaca">
