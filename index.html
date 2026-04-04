@@ -21,6 +21,9 @@ input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:9px 
 input:focus,select:focus,textarea:focus{border-color:#1E4B8F;background:#fff}
 button{font-family:inherit;cursor:pointer;transition:all .15s}
 @media print{.no-print{display:none!important}body{background:#fff}}
+body.dark{background:#0f1117;color:#e2e8f0}
+body.dark input,body.dark select,body.dark textarea{background:#1e2333;border-color:#2d3748;color:#e2e8f0}
+body.dark input:focus,body.dark select:focus,body.dark textarea:focus{border-color:#4a7fff;background:#252d3d}
 </style>
 </head>
 <body>
@@ -33,11 +36,16 @@ const {useState,useEffect,useRef,useMemo} = React;
 // Worker URL (bezpečná – GAS URL je skrytá vo Workeri)
 const WORKER='https://uznesenia-api.jasimko.workers.dev';
 // Tajný token – musí byť rovnaký ako APP_SECRET vo Cloudflare Workeri
-const APP_TOKEN='Visnove446-Simko-2026-xK9mR7';
+const APP_TOKEN='ZMEN-TOTO-NA-VLASTNY-TOKEN-2026-skolamanazer';
 // SHA-256 hash hesla 9731
-const PWD_HASH='a0359ec589252c3135979156ce6ba72924047e6676110867a5be09917caee9c9';
-async function checkPassword(pwd){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')===PWD_HASH;}
-// Login lockout
+// Riaditeľ: 9731  |  Učitelia/zamestnanci: 1379
+const DIR_HASH='a0359ec589252c3135979156ce6ba72924047e6676110867a5be09917caee9c9';
+const USR_HASH='8cfecd937a9328ecb71d3c08e5dd312058ca7d75171e7ba6e3af7573e210cd6c';
+async function checkPassword(pwd,role){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
+  const h=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return h===(role==='r'?DIR_HASH:USR_HASH);
+}
 let loginAttempts=0,loginLockedUntil=0;
 const MONTHS=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const SY_OPTIONS=['2024/2025','2025/2026','2026/2027','2027/2028'];
@@ -356,7 +364,8 @@ function Login({users,config,onLogin}){
   const handle=async()=>{
     if(!uid2){setErr('Vyberte meno.');return;}
     if(Date.now()<loginLockedUntil){const s=Math.ceil((loginLockedUntil-Date.now())/1000);setErr(`Príliš veľa pokusov. Počkajte ${s}s.`);return;}
-    const ok=await checkPassword(pwd);
+    const selUser=users.find(u=>u.id===uid2);
+    const ok=await checkPassword(pwd,selUser?.role||'u');
     if(!ok){loginAttempts++;if(loginAttempts>=5){loginLockedUntil=Date.now()+30000;loginAttempts=0;}setErr('Nesprávne heslo.'+(loginAttempts>=3?` (pokus ${loginAttempts}/5)`:''));return;}
     loginAttempts=0;onLogin(uid2);
   };
@@ -408,6 +417,140 @@ function SettingsModal({config,onSave,onClose}){
   </Modal>;
 }
 
+// ─── NÁHĽAD PLÁNU (Preview Modal) ───
+function PlanPreviewModal({month,data,curUser,onClose}){
+  const {plans,meetings,tasks,users,groups,config}=data;
+  const planMonths=getPlanMonths(config.sy);
+  const [selMonth,setSelMonth]=useState(month);
+  const pm=plans[selMonth]||{published:false,days:[],activities:[]};
+  const monthMeets=meetings.filter(m=>(m.date||'').startsWith(selMonth)).sort((a,b)=>a.date>b.date?1:-1);
+  const monthTasks=tasks.filter(t=>{
+    if(t.mid==='plan-'+selMonth) return true;
+    const m=meetings.find(x=>x.id===t.mid);
+    return m&&(m.date||'').startsWith(selMonth);
+  });
+  const approved=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
+  const days=(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1);
+
+  const printNow=()=>{
+    const w=window.open('','_blank');
+    const html=buildPlanHtml(selMonth,{days,monthMeets,approved,monthTasks,users,groups,config});
+    w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
+  };
+
+  return<Modal title={`👁 Náhľad plánu – ${mlabel(selMonth)}`} onClose={onClose} maxWidth={700}
+    footer={<><Btn onClick={onClose}>Zavrieť</Btn><Btn variant="primary" onClick={printNow}>🖨 Tlačiť / PDF</Btn></>}>
+    <div style={{marginBottom:12}}>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+        {planMonths.map(k=>{const on=k===selMonth;return<button type="button" key={k} onClick={()=>setSelMonth(k)}
+          style={{padding:'4px 11px',borderRadius:16,fontSize:11,fontWeight:600,border:'1.5px solid',cursor:'pointer',
+            borderColor:on?'#1E4B8F':'#E2E6F0',background:on?'#1E4B8F':'#fff',color:on?'#fff':'#4A5278'}}>
+          {MONTHS[parseInt(k.split('-')[1])-1].substring(0,3)}
+        </button>;})}
+      </div>
+    </div>
+    {!pm.published&&<div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:8,padding:'8px 13px',fontSize:12,color:'#92400E',marginBottom:10}}>📝 Plán nie je ešte zverejnený.</div>}
+    <div style={{border:'1px solid #E2E6F0',borderRadius:12,overflow:'hidden',background:'#fff'}}>
+      <div style={{padding:'14px 18px',borderBottom:'2px solid #1E4B8F',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
+        <div style={{color:'#fff',fontWeight:700,fontSize:15,textAlign:'center'}}>Plán práce na {mlabel(selMonth)}</div>
+        <div style={{color:'rgba(255,255,255,.8)',fontSize:12,textAlign:'center',marginTop:2}}>{config.school} · Školský rok {config.sy}</div>
+      </div>
+      <div style={{padding:'14px 18px'}}>
+        {[
+          ['A/ Štátne sviatky a pamätné dni',days,d=><div key={d.id} style={{display:'flex',gap:10,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <span style={{fontWeight:700,color:'#1E4B8F',minWidth:90,fontSize:12}}>{fmtS(d.date)}</span>
+            <span><strong>{d.name}</strong>{d.note&&<span style={{fontSize:11,color:'#8892B0'}}> – {d.note}</span>}</span>
+          </div>],
+          ['B/ Porady a zasadnutia',monthMeets,m=><div key={m.id} style={{display:'flex',gap:10,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <span style={{fontWeight:700,color:MEET_FG[m.type]||'#1E4B8F',minWidth:90,fontSize:12}}>{m.date?fmtS(m.date):'—'}{m.time?' '+m.time:''}</span>
+            <span><span style={{display:'inline-flex',padding:'1px 6px',borderRadius:4,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span><strong>{m.name}</strong>{m.place&&<span style={{fontSize:11,color:'#8892B0'}}> · {m.place}</span>}</span>
+          </div>],
+          ['C/ Aktivity a podujatia',approved,a=><div key={a.id} style={{display:'flex',gap:10,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <span style={{fontWeight:700,color:'#2A9D6F',minWidth:90,fontSize:12}}>{a.date?fmtS(a.date):'—'}</span>
+            <span><strong>{a.name}</strong><span style={{fontSize:11,color:'#8892B0'}}> · {a.cls}</span></span>
+          </div>],
+          ['D/ Úlohy',monthTasks,t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
+            <span style={{color:'#8892B0',minWidth:55,fontSize:11}}>{t.no||'—'}</span>
+            <span style={{flex:1}}>{t.txt}</span>
+            <span style={{fontSize:11,color:'#4A5278'}}>{respLabel(t.respType,t.respVal,users,groups)}</span>
+            <Badge st={st}/>
+          </div>;}],
+        ].map(([title,items,render])=><div key={title} style={{marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#1E4B8F',borderBottom:'1.5px solid #1E4B8F',paddingBottom:3,marginBottom:6,textTransform:'uppercase',letterSpacing:'.04em'}}>{title}</div>
+          {items.length?items.map(render):<div style={{fontSize:12,color:'#8892B0',fontStyle:'italic',padding:'4px 0'}}>Žiadne.</div>}
+        </div>)}
+        <div style={{marginTop:20,paddingTop:12,borderTop:'1px solid #E2E6F0',display:'flex',justifyContent:'flex-end'}}>
+          <div style={{textAlign:'right',fontSize:12}}>
+            <div style={{marginTop:30,borderTop:'1px solid #1a1f36',paddingTop:4,color:'#4A5278'}}>riaditeľ školy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Modal>;
+}
+function buildPlanHtml(month,{days,monthMeets,approved,monthTasks,users,groups,config}){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Plán ${mlabel(month)}</title>
+  <style>body{font-family:Arial,sans-serif;margin:35px;font-size:12pt}
+  h1{font-size:15pt;text-align:center;margin-bottom:3px}h3{font-size:11pt;text-align:center;color:#555;margin-bottom:18px}
+  h2{font-size:12pt;margin:16px 0 5px;border-bottom:1px solid #1E4B8F;padding-bottom:2px;color:#1E4B8F}
+  table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}
+  .sig{margin-top:50px;text-align:right}.empty{color:#999;font-style:italic}</style></head><body>
+  <h1>Plán práce na ${mlabel(month)}</h1>
+  <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · Školský rok ${config.sy||'2025/2026'}</h3>
+  <h2>A/ Štátne sviatky, dni pracovného pokoja, pamätné dni</h2>
+  ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><b>${d.name}</b></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+  <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
+  ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Poznámka</th></tr>${monthMeets.map(m=>`<tr><td>${m.date?fmtS(m.date):'—'}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+  <h2>C/ Aktivity &amp; podujatia</h2>
+  ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${a.date?fmtS(a.date):'—'}</td><td><b>${a.name}</b></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+  <h2>D/ Úlohy</h2>
+  ${monthTasks.length?`<table><tr><th>Č.</th><th>Úloha</th><th>Zodpovedný/á</th><th>Termín</th></tr>${monthTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,month)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne úlohy.</p>'}
+  <div class="sig"><br/><br/>________________________________<br/>riaditeľ školy</div>
+  </body></html>`;
+}
+
+// ─── NÁHĽAD PORADY (PP/PR Preview Modal) ───
+function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
+  const {users,groups,config}=data;
+  const myTasks=tasks.filter(t=>t.mid===meeting.id);
+  const typeName=MEET_NAMES[type]||type;
+  const printNow=()=>{
+    const w=window.open('','_blank');
+    const isPA=type==='PR';
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${typeName}</title>
+    <style>body{font-family:Arial,sans-serif;margin:35px;font-size:12pt}h1{font-size:15pt;text-align:center;margin-bottom:3px}h3{font-size:11pt;text-align:center;color:#555;margin-bottom:18px}h2{font-size:12pt;margin:16px 0 5px;border-bottom:1px solid #000;padding-bottom:2px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}ol{margin:0 0 0 18px}li{margin-bottom:5px}.sig{margin-top:50px;display:flex;justify-content:space-between}.empty{color:#999;font-style:italic}</style></head><body>
+    <h1>${typeName}</h1><h3>${config.school||'ZŠ s MŠ, Višňové 446'} · ${meeting.date?fmt(meeting.date):'dátum neurčený'}${meeting.time?' · '+meeting.time:''}</h3>
+    ${meeting.place?`<p><b>Poznámka:</b> ${meeting.place}</p>`:''}
+    <h2>Program</h2>${meeting.program?`<ol>${(meeting.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="empty">Bez programu.</p>'}
+    <h2>${isPA?'Uznesenia':'Úlohy'}</h2>${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,'')}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+    <div class="sig"><div><br/><br/>________________________________<br/>Zapisovateľ/ka</div><div><br/><br/>________________________________<br/>riaditeľ školy</div></div>
+    </body></html>`;
+    w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
+  };
+  return<Modal title={`👁 Náhľad – ${meeting.name}`} onClose={onClose} maxWidth={650}
+    footer={<><Btn onClick={onClose}>Zavrieť</Btn><Btn variant="primary" onClick={printNow}>🖨 Tlačiť / PDF</Btn></>}>
+    <div style={{border:'1px solid #E2E6F0',borderRadius:12,overflow:'hidden'}}>
+      <div style={{padding:'12px 18px',background:MEET_BG[type]||'#EEF3FC',borderBottom:`2px solid ${MEET_FG[type]||'#1E4B8F'}`}}>
+        <div style={{fontWeight:700,fontSize:15,color:MEET_FG[type]||'#1E4B8F'}}>{meeting.name}</div>
+        <div style={{fontSize:12,color:'#4A5278',marginTop:2}}>📅 {meeting.date?fmt(meeting.date):'dátum neurčený'}{meeting.time?' · 🕐 '+meeting.time:''}{meeting.place?' · 📝 '+meeting.place:''}</div>
+      </div>
+      <div style={{padding:'14px 18px'}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:6,textTransform:'uppercase',letterSpacing:'.04em'}}>Program</div>
+        {meeting.program?<ol style={{margin:'0 0 14px 18px',padding:0}}>
+          {(meeting.program||'').split('\n').filter(Boolean).map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0'}}>{l}</li>)}
+        </ol>:<div style={{fontSize:13,color:'#8892B0',fontStyle:'italic',marginBottom:14}}>Bez programu.</div>}
+        <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:6,textTransform:'uppercase',letterSpacing:'.04em'}}>{type==='PR'?'Uznesenia':'Úlohy'} ({myTasks.length})</div>
+        {myTasks.length?myTasks.map(t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
+          <span style={{color:'#8892B0',minWidth:50,fontSize:11}}>{t.no||'—'}</span>
+          <span style={{flex:1}}>{t.txt}</span>
+          <span style={{fontSize:11,color:'#4A5278'}}>{respLabel(t.respType,t.respVal,users,groups)}</span>
+          <Badge st={st}/>
+        </div>;}):<div style={{fontSize:13,color:'#8892B0',fontStyle:'italic'}}>Žiadne.</div>}
+      </div>
+    </div>
+  </Modal>;
+}
+
 // ═══════════════════════════════════════════
 // SEKCIA 1: PLÁN NA MESIAC
 // ═══════════════════════════════════════════
@@ -416,6 +559,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
   const isDir=curUser.role==='r';
   const planMonths=getPlanMonths(config.sy);
   const [month,setMonth]=useState(()=>currentPlanMonth(config.sy));
+  const [previewModal,setPreviewModal]=useState(false);
   const [actModal,setActModal]=useState(null); // null | {} | {existing}
   const [dayModal,setDayModal]=useState(false);
   const [taskModal,setTaskModal]=useState(null);
@@ -465,7 +609,8 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
       <div style={{fontSize:18,fontWeight:700}}>📅 Plán práce na mesiac</div>
       <div style={{display:'flex',gap:7}} className="no-print">
-        <Btn size="sm" variant="primary" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>
+        <Btn size="sm" variant="outline" onClick={()=>setPreviewModal(true)}>👁 Náhľad</Btn>
+        {isDir&&<Btn size="sm" variant="primary" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>}
         {isDir&&<Btn size="sm" variant="amber" onClick={()=>setCopyPlanModal(true)}>📋 Kopírovať plán</Btn>}
         {isDir&&<><Btn size="sm" variant="green" onClick={()=>setDayModal(true)}>+ Sviatok</Btn>
           <Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+ Porada</Btn>
@@ -609,6 +754,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {copyPlanModal&&<CopyPlanModal sourceMonth={month} sourcePlan={pm} sourceTasks={tasks} data={data}
       onSaveMeet={onSaveMeet} onSaveTask={onSaveTask} onSaveDay={onSaveDay} onSaveAct={onSaveAct}
       onClose={()=>setCopyPlanModal(false)} toast={toast}/>}
+    {previewModal&&<PlanPreviewModal month={month} data={data} curUser={curUser} onClose={()=>setPreviewModal(false)}/>}
   </div>;
 }
 
@@ -794,6 +940,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
   const [editMeetModal,setEditMeetModal]=useState(null);
   const [confirmDelMeet,setConfirmDelMeet]=useState(null);
   const [copyModal,setCopyModal]=useState(false);
+  const [previewModal,setPreviewModal]=useState(false);
   const [taskModal,setTaskModal]=useState(null);
   const [doneModal,setDoneModal]=useState(null);
 
@@ -833,7 +980,12 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
         {typeName}
       </div>
       <div style={{display:'flex',gap:7}}>
-        {sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
+        {/* Riaditeľ: tlač + zverejniť | Učiteľ: náhľad len keď je zverejnené */}
+        {isDir&&sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
+        {isDir&&sel&&<Btn size="sm" variant={sel.published?'outline':'green'} onClick={()=>onSaveMeet({...sel,published:!sel.published})}>
+          {sel.published?'🔒 Skryť':'📢 Zverejniť'}
+        </Btn>}
+        {!isDir&&sel&&sel.published&&<Btn size="sm" variant="outline" onClick={()=>setPreviewModal(true)}>👁 Náhľad / Tlač</Btn>}
         {isDir&&sel&&<Btn size="sm" variant="amber" onClick={()=>setCopyModal(true)}>📋 Kopírovať</Btn>}
         {isDir&&sel&&<Btn size="sm" onClick={()=>setEditMeetModal(sel)}>✎ Upraviť</Btn>}
         {isDir&&sel&&<Btn size="sm" variant="red" onClick={()=>setConfirmDelMeet(sel.id)}>🗑 Vymazať</Btn>}
@@ -949,6 +1101,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
     {copyModal&&sel&&<CopyMeetModal source={sel} sourceTasks={myTasks} type={type} data={data}
       onSaveMeet={onSaveMeet} onSaveTask={onSaveTask}
       onClose={()=>setCopyModal(false)} toast={toast}/>}
+    {previewModal&&sel&&<MeetingPreviewModal meeting={sel} tasks={tasks} data={data} type={type} onClose={()=>setPreviewModal(false)}/>}
   </div>;
 }
 
@@ -1166,6 +1319,23 @@ function DoneModal({task,onSave,onClose}){
 // ═══════════════════════════════════════════
 // HLAVNÁ APLIKÁCIA
 // ═══════════════════════════════════════════
+// ─── DARK MODE ───
+function DarkToggle({dark,setDark}){
+  const toggle=()=>{
+    const nd=!dark;
+    setDark(nd);
+    document.body.classList.toggle('dark',nd);
+    try{localStorage.setItem('skolaDark',nd?'1':'0');}catch{}
+  };
+  return<button type="button" onClick={toggle} title={dark?'Svetlý režim':'Tmavý režim'}
+    style={{width:34,height:34,borderRadius:8,border:'1.5px solid',display:'flex',alignItems:'center',justifyContent:'center',
+      borderColor:dark?'#4a7fff':'#E2E6F0',background:dark?'#1e2333':'#F8FAFD',cursor:'pointer',fontSize:16,transition:'all .2s'}}>
+    {dark?'☀️':'🌙'}
+  </button>;
+}
+// Barvy pre dark/light režim
+function dk(dark,light,d){return dark?d:light;}
+
 function App(){
   const [status,setStatus]=useState('loading');
   const [data,setData]=useState(null);
@@ -1173,6 +1343,8 @@ function App(){
   const [view,setView]=useState('plan');
   const [toast,setToast]=useState(null);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [dark,setDark]=useState(()=>{try{return localStorage.getItem('skolaDark')==='1';}catch{return false;}});
+  useEffect(()=>{document.body.classList.toggle('dark',dark);},[]);
 
   const showToast=(msg,type='inf')=>setToast({msg,type});
 
@@ -1291,6 +1463,7 @@ function App(){
             <span style={{fontSize:11,color:'#8892B0'}}>({curUser.role==='r'?'Riaditeľ':'Zamestnanec'})</span>
           </div>
           <div style={{width:1,height:24,background:'#E2E6F0'}}/>
+          <DarkToggle dark={dark} setDark={setDark}/>
           <Btn size="sm" onClick={()=>{setCurUser(null);setStatus('login');}}>Odhlásiť</Btn>
         </div>
       </header>
