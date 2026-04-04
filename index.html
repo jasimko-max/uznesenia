@@ -33,7 +33,7 @@ const {useState,useEffect,useRef,useMemo} = React;
 // Worker URL (bezpečná – GAS URL je skrytá vo Workeri)
 const WORKER='https://uznesenia-api.jasimko.workers.dev';
 // Tajný token – musí byť rovnaký ako APP_SECRET vo Cloudflare Workeri
-const APP_TOKEN='ZMEN-TOTO-NA-VLASTNY-TOKEN-2026-skolamanazer';
+const APP_TOKEN='Visnove446-Simko-2026-xK9mR7';
 // SHA-256 hash hesla 9731
 const PWD_HASH='a0359ec589252c3135979156ce6ba72924047e6676110867a5be09917caee9c9';
 async function checkPassword(pwd){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')===PWD_HASH;}
