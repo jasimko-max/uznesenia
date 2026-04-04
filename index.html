@@ -5,10 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Školský manažér · ZŠ s MŠ, Višňové 446</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>
-// Potlačiť varovanie Babel in-browser transformera
-(function(){var w=console.warn.bind(console);console.warn=function(){if(typeof arguments[0]==='string'&&arguments[0].indexOf('in-browser Babel transformer')!==-1)return;w.apply(console,arguments);};})();
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -30,11 +26,19 @@ button{font-family:inherit;cursor:pointer;transition:all .15s}
 <body>
 <div id="root"></div>
 <script type="text/babel">
+
 const {useState,useEffect,useRef,useMemo} = React;
 
 // ═══ CONFIG ═══
-const GAS='https://script.google.com/macros/s/AKfycbwjU192cBqfQbChf3XHqsmxK0YM8X66Ftz7Zw_WaokhiM6jYwUSEGH4n5TFD-TmeNYu/exec';
-const PWD_HASH='OTczMQ=='; // btoa('9731') – zakódované heslo riaditeľa
+// Worker URL (bezpečná – GAS URL je skrytá vo Workeri)
+const WORKER='https://uznesenia-api.jasimko.workers.dev';
+// Tajný token – musí byť rovnaký ako APP_SECRET vo Cloudflare Workeri
+const APP_TOKEN='ZMEN-TOTO-NA-VLASTNY-TOKEN-2026-skolamanazer';
+// SHA-256 hash hesla 9731
+const PWD_HASH='a0359ec589252c3135979156ce6ba72924047e6676110867a5be09917caee9c9';
+async function checkPassword(pwd){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')===PWD_HASH;}
+// Login lockout
+let loginAttempts=0,loginLockedUntil=0;
 const MONTHS=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const SY_OPTIONS=['2024/2025','2025/2026','2026/2027','2027/2028'];
 const AV_COLORS={blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
@@ -58,16 +62,17 @@ function currentPlanMonth(sy){
   return months.find(m=>m===now)||months[0];
 }
 
-// ═══ API – optimistické ukladanie ═══
+// ═══ API – bezpečné volania cez Worker ═══
 async function apiGet(action=''){
-  const r=await fetch(GAS+(action?'?action='+action:''));
+  const r=await fetch(WORKER+(action?'?action='+action:''),{headers:{'Content-Type':'application/json','X-App-Token':APP_TOKEN}});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
-// Fire-and-forget – UI sa aktualizuje okamžite, API beží na pozadí
 async function apiPost(action,payload={}){
-  const r=await fetch(GAS,{method:'POST',body:JSON.stringify({action,...payload})});
+  const r=await fetch(WORKER,{method:'POST',
+    headers:{'Content-Type':'application/json','X-App-Token':APP_TOKEN},
+    body:JSON.stringify({action,...payload})});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.result;
@@ -134,50 +139,68 @@ function Btn({children,onClick,variant='outline',size='md',disabled,style={}}){
 
 function Badge({st}){
   const cfg={splnene:{bg:'#F0FDF4',c:'#15803D',l:'Splnené'},ciastocne:{bg:'#FFFBEB',c:'#B45309',l:'Čiastočne'},
-    'po-termine':{bg:'#FEF2F2',c:'#DC2626',l:'Po termíne'},otvorene:{bg:'#EEF3FC',c:'#1E4B8F',l:'Otvorené'},
-    nesplnene:{bg:'#FEF2F2',c:'#DC2626',l:'Nesplnené'}};
+    'po-termine':{bg:'#FEF2F2',c:'#DC2626',l:'Po termíne'},otvorene:{bg:'#EEF3FC',c:'#1E4B8F',l:'Otvorené'}};
   const s=cfg[st]||{bg:'#F8FAFD',c:'#888',l:st};
   return<span style={{display:'inline-flex',padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,background:s.bg,color:s.c,whiteSpace:'nowrap'}}>{s.l}</span>;
 }
 
-// Pomocná funkcia: môže používateľ meniť stav úlohy?
-function canChangeStatus(task,curUser,users,groups){
-  if(curUser.role==='r') return true; // riaditeľ
-  if((curUser.name||'').toLowerCase().includes('jopčíková')) return true; // zástupkyňa
+// Interaktívny status badge – meniť môže riaditeľ, Jopčíková, zodpovední
+const STATUS_ORDER=['','otvorene','po-termine','splnene'];
+const STATUS_CFG={
+  '':       {bg:'#F8FAFD',c:'#C0C8D8',l:'—',border:'#E2E6F0'},
+  otvorene: {bg:'#EEF3FC',c:'#1E4B8F',l:'Otvorené',border:'#BFDBFE'},
+  'po-termine':{bg:'#FEF2F2',c:'#DC2626',l:'Nesplnené',border:'#FECACA'},
+  splnene:  {bg:'#F0FDF4',c:'#15803D',l:'Splnené',border:'#BBF7D0'},
+};
+function canEditStatus(curUser,task,groups){
+  if(!curUser) return false;
+  if(curUser.role==='r') return true;
+  if(curUser.id==='jopcikova-m') return true;
   const members=getMembers(task.respType,task.respVal,groups);
-  if(members.includes(curUser.id)) return true; // zodpovedný
-  return false;
+  return members.includes(curUser.id);
 }
-
-// Farebné políčko stavu úlohy – meniť môžu len oprávnení
-function StatusPicker({task,curUser,users,groups,onChangeStatus}){
+function StatusBadge({task,curUser,groups,onChangeStatus}){
   const [open,setOpen]=useState(false);
-  const allowed=canChangeStatus(task,curUser,users,groups);
-  const STATUSES=[
-    {k:'',l:'—',bg:'#F8FAFD',c:'#8892B0'},
-    {k:'otvorene',l:'Otvorené',bg:'#EEF3FC',c:'#1E4B8F'},
-    {k:'nesplnene',l:'Nesplnené',bg:'#FEF2F2',c:'#DC2626'},
-    {k:'splnene',l:'Splnené',bg:'#F0FDF4',c:'#15803D'},
-  ];
-  const cur=STATUSES.find(s=>s.k===(task.manualStatus||''))||STATUSES[0];
-  return<div style={{position:'relative',display:'inline-block'}}>
-    <span onClick={()=>allowed&&setOpen(o=>!o)}
-      style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,
-        background:cur.bg,color:cur.c,whiteSpace:'nowrap',cursor:allowed?'pointer':'default',
-        border:allowed?'1.5px solid '+cur.c:'1.5px solid transparent',userSelect:'none'}}>
-      {cur.l}{allowed&&<span style={{fontSize:9}}>▾</span>}
+  const ref=useRef(null);
+  const manualSt=task.manualStatus||'';
+  const autoSt=taskStatus(task,groups);
+  // Zobraz manuálny status ak je nastavený, inak automatický
+  const displaySt=manualSt||autoSt;
+  const cfg=STATUS_CFG[manualSt]||(manualSt===''?STATUS_CFG['']:null);
+  const s=manualSt?STATUS_CFG[manualSt]||STATUS_CFG['']:
+    {bg:'#EEF3FC',c:'#1E4B8F',l:{splnene:'Splnené',ciastocne:'Čiastočne','po-termine':'Po termíne',otvorene:'Otvorené'}[autoSt]||autoSt,border:'#BFDBFE'};
+  
+  useEffect(()=>{
+    if(!open) return;
+    const handler=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener('mousedown',handler);
+    return()=>document.removeEventListener('mousedown',handler);
+  },[open]);
+
+  const canEdit=canEditStatus(curUser,task,groups);
+  
+  return<div ref={ref} style={{position:'relative',display:'inline-block'}}>
+    <span onClick={canEdit?()=>setOpen(o=>!o):undefined}
+      style={{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,
+        background:s.bg,color:s.c,border:`1.5px solid ${s.border||'transparent'}`,
+        whiteSpace:'nowrap',cursor:canEdit?'pointer':'default',
+        userSelect:'none',transition:'opacity .15s',opacity:canEdit?1:.9}}>
+      {s.l}
+      {canEdit&&<span style={{fontSize:9,opacity:.6}}>▾</span>}
     </span>
-    {open&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:600,background:'#fff',borderRadius:10,
-      border:'1px solid #E2E6F0',boxShadow:'0 8px 28px rgba(30,75,143,.18)',minWidth:130,overflow:'hidden'}}>
-      {STATUSES.map(s=><div key={s.k} onClick={()=>{onChangeStatus(task.id,s.k);setOpen(false);}}
-        style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',cursor:'pointer',fontSize:12,fontWeight:600,
-          background:task.manualStatus===s.k?s.bg:'#fff',color:s.c,
-          borderLeft:'3px solid '+(task.manualStatus===s.k?s.c:'transparent')}}
-        onMouseEnter={e=>e.currentTarget.style.background=s.bg}
-        onMouseLeave={e=>e.currentTarget.style.background=task.manualStatus===s.k?s.bg:'#fff'}>
-        <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',background:s.c,flexShrink:0}}/>
-        {s.l}
-      </div>)}
+    {open&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:600,
+      background:'#fff',borderRadius:10,border:'1px solid #E2E6F0',
+      boxShadow:'0 8px 24px rgba(30,75,143,.18)',padding:5,minWidth:130}}>
+      <div style={{fontSize:10,fontWeight:700,color:'#8892B0',padding:'3px 8px 5px',textTransform:'uppercase',letterSpacing:'.05em'}}>Zmeniť stav</div>
+      {STATUS_ORDER.map(key=>{const sc=STATUS_CFG[key];return<div key={key} onClick={()=>{onChangeStatus(task.id,key);setOpen(false);}}
+        style={{display:'flex',alignItems:'center',gap:7,padding:'6px 10px',borderRadius:8,cursor:'pointer',
+          background:(manualSt===key||(manualSt===''&&key===''))?sc.bg:'transparent'}}
+        onMouseEnter={e=>e.currentTarget.style.background=sc.bg}
+        onMouseLeave={e=>e.currentTarget.style.background=(manualSt===key||(manualSt===''&&key===''))?sc.bg:'transparent'}>
+        <span style={{display:'inline-block',width:10,height:10,borderRadius:'50%',
+          background:key===''?'#E2E6F0':sc.c,flexShrink:0}}/>
+        <span style={{fontSize:12,fontWeight:600,color:key===''?'#8892B0':sc.c}}>{key===''?'— (automaticky)':sc.l}</span>
+      </div>;})}
     </div>}
   </div>;
 }
@@ -330,10 +353,12 @@ function Login({users,config,onLogin}){
   const [uid2,setUid]=useState('');
   const [pwd,setPwd]=useState('');
   const [err,setErr]=useState('');
-  const handle=()=>{
+  const handle=async()=>{
     if(!uid2){setErr('Vyberte meno.');return;}
-    if(btoa(pwd)!==PWD_HASH){setErr('Nesprávne heslo.');return;}
-    onLogin(uid2);
+    if(Date.now()<loginLockedUntil){const s=Math.ceil((loginLockedUntil-Date.now())/1000);setErr(`Príliš veľa pokusov. Počkajte ${s}s.`);return;}
+    const ok=await checkPassword(pwd);
+    if(!ok){loginAttempts++;if(loginAttempts>=5){loginLockedUntil=Date.now()+30000;loginAttempts=0;}setErr('Nesprávne heslo.'+(loginAttempts>=3?` (pokus ${loginAttempts}/5)`:''));return;}
+    loginAttempts=0;onLogin(uid2);
   };
   return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
     <div className="animate" style={{background:'#fff',borderRadius:20,padding:40,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
@@ -426,7 +451,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     <h2>A/ Štátne sviatky, dni pracovného pokoja, pamätné dni</h2>
     ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><b>${d.name}</b></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
-    ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Poznámka</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
+    ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>C/ Aktivity &amp; podujatia</h2>
     ${approved.length?`<table><tr><th>Dátum</th><th>Aktivita</th><th>Pre koho</th><th>Zodpovedný/á</th></tr>${approved.map(a=>`<tr><td>${fmtActDate(a)}</td><td><b>${a.name}</b></td><td>${a.cls||''}</td><td>${respLabel(a.respType||'single',a.respVal,users,groups)}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>D/ Úlohy</h2>
@@ -510,7 +535,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
             <div style={{flex:1}}>
               <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
               <strong>{m.name}</strong>
-              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>{m.place}</div>}
+              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
             </div>
             {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px'}}>✎</Btn>}
           </div>)}
@@ -555,8 +580,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
                   </div>
                 </div>
                 <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center'}}>
-                  <StatusPicker task={t} curUser={curUser} users={users} groups={groups} onChangeStatus={onChangeStatus}/>
-                  {isMyTask&&<Btn size="sm" variant="green" onClick={()=>{/* DoneModal inline */}} style={{padding:'2px 7px'}}>✓</Btn>}
+                  <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
                   {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)} style={{padding:'2px 7px'}}>✎</Btn>}
                   {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)} style={{padding:'2px 6px'}}>✕</Btn>}
                 </div>
@@ -718,19 +742,24 @@ function MeetModal({existing,type,data,planMonths,defaultMonth,onSave,onClose}){
   const [name,setName]=useState(existing?.name||'');
   const [date,setDate]=useState(existing?.date||'');
   const [time,setTime]=useState(existing?.time||'13:30');
-  const [place,setPlace]=useState(existing?.place||'zborovňa');
+  const [place,setPlace]=useState(existing?.place||'');
   const [program,setProgram]=useState(existing?.program||'');
   const [saving,setSaving]=useState(false);
   const isNew=!existing?.id;
+  // Aktuálny rok zo školského roka
+  const curYr=new Date().getFullYear();
   useEffect(()=>{
     if(isNew){
       const cnt=data.meetings.filter(m=>m.type===selType).length+1;
-      const yr=new Date().getFullYear();
-      setName(`${MEET_NAMES[selType]} ${cnt}/${yr}`);
+      setName(`${MEET_NAMES[selType]} ${cnt}/${curYr}`);
     }
   },[selType]);
-  const save=async()=>{if(!name)return;setSaving(true);
-    await onSave({id:existing?.id||uid(),name,date,type:selType,time,place,program});setSaving(false);};
+  const save=async()=>{
+    if(!name)return; // dátum nie je povinný
+    setSaving(true);
+    await onSave({id:existing?.id||uid(),name,date,type:selType,time,place,program});
+    setSaving(false);
+  };
   return<Modal title={isNew?'Nová porada / zasadnutie':'Upraviť poradu'} onClose={onClose} maxWidth={480}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
     {isNew&&<Field label="Typ">
@@ -744,10 +773,10 @@ function MeetModal({existing,type,data,planMonths,defaultMonth,onSave,onClose}){
     </Field>}
     <Field label="Názov"><input value={name} onChange={e=>setName(e.target.value)}/></Field>
     <Row2>
-      <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
+      <Field label="Dátum (nepovinný)"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
     </Row2>
-    <Field label="Poznámka"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. zborovňa"/></Field>
+    <Field label="Poznámka"><input value={place} onChange={e=>setPlace(e.target.value)} placeholder="napr. miesto, téma…"/></Field>
   </Modal>;
 }
 
@@ -785,7 +814,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
     .empty{color:#999;font-style:italic}</style></head><body>
     <h1>${typeName}</h1>
     <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · ${fmt(sel.date)}${sel.time?' · '+sel.time:''}</h3>
-    <p><b>Poznámka:</b> ${sel.place||'—'}</p>
+    ${sel.place?`<p><b>Poznámka:</b> ${sel.place}</p>`:''}
     <h2>Program</h2>
     ${sel.program?`<ol>${(sel.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="empty">Bez programu.</p>'}
     <h2>${isPA?'Uznesenia':'Úlohy'}</h2>
@@ -880,7 +909,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
                 <div style={{flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                     {t.no&&<span style={{fontSize:11,fontWeight:700,color:'#8892B0'}}>{t.no}</span>}
-                    <StatusPicker task={t} curUser={curUser} users={users} groups={groups} onChangeStatus={onChangeStatus}/>
+                    <Badge st={st}/>
                   </div>
                   <div style={{fontSize:13,fontWeight:600,marginBottom:3}}>{t.txt}</div>
                   {t.note&&<div style={{fontSize:12,color:'#8892B0',marginBottom:3}}>💬 {t.note}</div>}
@@ -889,7 +918,8 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
                     {t.dead||t.taskType==='month'||t.taskType==='permanent'?<span style={{marginLeft:10}}>📅 {deadLabel(t,'')}</span>:null}
                   </div>
                 </div>
-                <div style={{display:'flex',gap:5,flexShrink:0}}>
+                <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center'}}>
+                  <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
                   {isMyTask&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
                   {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)}>✎</Btn>}
                   {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)}>✕</Btn>}
@@ -938,12 +968,12 @@ function CopyMeetModal({source,sourceTasks,type,data,onSaveMeet,onSaveTask,onClo
 
   useEffect(()=>{
     const cnt=meetings.filter(m=>m.type===type).length+1;
-    const yr=new Date().getFullYear();
+    const yr=(config.sy||'2025/2026').split('/')[0];
     setName(`${MEET_NAMES[type]} ${cnt}/${yr}`);
   },[]);
 
   const save=async()=>{
-    if(!name){toast('Vyplňte názov.','err');return;}
+    if(!name||!date){toast('Vyplňte názov a dátum.','err');return;}
     setSaving(true);
     const newMeet={id:uid(),name,date,type,time,place,
       program:copyProgram?source.program:''};
@@ -986,7 +1016,7 @@ function CopyMeetModal({source,sourceTasks,type,data,onSaveMeet,onSaveTask,onClo
       <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
       <Field label="Čas"><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></Field>
     </Row2>
-    <Field label="Poznámka"><input value={place} onChange={e=>setPlace(e.target.value)}/></Field>
+    <Field label="Miesto"><input value={place} onChange={e=>setPlace(e.target.value)}/></Field>
   </Modal>;
 }
 
@@ -1171,6 +1201,12 @@ function App(){
     setData(d=>({...d,meetings:d.meetings.filter(m=>m.id!==id),tasks:d.tasks.filter(t=>t.mid!==id)}));
     return apiPost('deleteMeeting',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
+  const changeTaskStatus=(taskId,manualStatus)=>{
+    setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,manualStatus}:t)}));
+    // Uložíme celú úlohu so statusom
+    const task=data.tasks.find(t=>t.id===taskId);
+    if(task) apiPost('saveTask',{data:{...task,manualStatus}}).catch(e=>showToast('Chyba: '+e.message,'err'));
+  };
   const saveMeeting=m=>{
     setData(d=>({...d,meetings:d.meetings.find(x=>x.id===m.id)?d.meetings.map(x=>x.id===m.id?m:x):[...d.meetings,m]}));
     return apiPost('saveMeeting',{data:m}).catch(e=>showToast('Chyba: '+e.message,'err'));
@@ -1218,15 +1254,6 @@ function App(){
     await apiPost('saveConfig',{data:cfg});
     setData(d=>({...d,config:{...d.config,...cfg}}));
     showToast('Nastavenia uložené.','ok');
-  };
-  const saveTaskStatus=(taskId,manualStatus)=>{
-    setData(d=>{
-      const task=d.tasks.find(t=>t.id===taskId);
-      if(!task) return d;
-      const updated={...task,manualStatus};
-      apiPost('saveTask',{data:updated}).catch(e=>showToast('Chyba: '+e.message,'err'));
-      return{...d,tasks:d.tasks.map(t=>t.id===taskId?updated:t)};
-    });
   };
 
   if(status==='loading') return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
@@ -1293,11 +1320,11 @@ function App(){
           {view==='plan'&&<PlanView data={data} curUser={curUser}
             onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
             onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
-            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} onChangeStatus={saveTaskStatus} toast={showToast}/>}
+            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
           {view==='pp'&&<MeetingView data={data} curUser={curUser} type="PP"
-            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={saveTaskStatus} toast={showToast}/>}
+            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
           {view==='pr'&&<MeetingView data={data} curUser={curUser} type="PR"
-            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={saveTaskStatus} toast={showToast}/>}
+            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
         </main>
       </div>
     </div>
@@ -1308,6 +1335,7 @@ function App(){
 }
 
 ReactDOM.render(<App/>,document.getElementById('root'));
+
 </script>
 </body>
 </html>
