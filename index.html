@@ -61,6 +61,9 @@ function currentPlanMonth(sy){
   return months.find(m=>m===now)||months[0];
 }
 
+const WORKER = "https://uznesenia-api.jasimko.workers.dev";
+let sessionToken = null;
+
 // ═══ API – session token (žiadne heslá v HTML!) ═══
 function apiHeaders(){
   return {'Content-Type':'application/json','X-Session-Token':sessionToken||''};
