@@ -61,27 +61,19 @@ function currentPlanMonth(sy){
   return months.find(m=>m===now)||months[0];
 }
 
-const WORKER = "https://uznesenia-api.jasimko.workers.dev";
-let sessionToken = null;
-
 // ═══ API – session token (žiadne heslá v HTML!) ═══
 function apiHeaders(){
   return {'Content-Type':'application/json','X-Session-Token':sessionToken||''};
 }
 async function apiGet(action=''){
-  const r=await fetch(WORKER+'/data'+(action?'?action='+action:''),{
-    headers:apiHeaders()
-  });
+  const r=await fetch(WORKER+(action?'?action='+action:''),{headers:apiHeaders()});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
 async function apiPost(action,payload={}){
-  const r=await fetch(WORKER+'/data',{
-    method:'POST',
-    headers:apiHeaders(),
-    body:JSON.stringify({action,...payload})
-  });
+  const r=await fetch(WORKER,{method:'POST',headers:apiHeaders(),
+    body:JSON.stringify({action,...payload})});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.result;
