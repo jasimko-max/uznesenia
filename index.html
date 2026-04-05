@@ -34,22 +34,9 @@ body.dark input:focus,body.dark select:focus,body.dark textarea:focus{border-col
 const {useState,useEffect,useRef,useMemo} = React;
 
 // ═══ CONFIG ═══
-// Worker URL (bezpečná – GAS URL je skrytá vo Workeri)
+// Len URL Workera – žiadne heslá ani tokeny!
 const WORKER='https://uznesenia-api.jasimko.workers.dev';
-// Tajný token – musí byť rovnaký ako APP_SECRET vo Cloudflare Workeri
-const APP_TOKEN='Visnove446-Simko-2026-xK9mR7';
-// SHA-256 hash hesla 9731
-// Riaditeľ: 9731  |  Učitelia/zamestnanci: 1379
-// Heslá sú hashované s unikátnou soľou – nie sú vyhľadateľné v rainbow tables
-const SALT='ZsVisnove446-2026-xK9mR7qP';
-const DIR_HASH='a0fdcde1e1b9e0378e5e08ea212db6f37e8eae30592e59c5fca4a06b34032c4a';
-const USR_HASH='f2de21329ac8a2d849f58aae3f1e412a302a50c14d44d74ba754329f4fce6676';
-async function checkPassword(pwd,role){
-  // Kombinuj heslo so soľou pred hashovaním
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd+SALT));
-  const h=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  return h===(role==='r'?DIR_HASH:USR_HASH);
-}
+let sessionToken=null; // session token dostaneme po prihlásení
 let loginAttempts=0,loginLockedUntil=0;
 const MONTHS=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const SY_OPTIONS=['2024/2025','2025/2026','2026/2027','2027/2028'];
@@ -74,20 +61,28 @@ function currentPlanMonth(sy){
   return months.find(m=>m===now)||months[0];
 }
 
-// ═══ API – bezpečné volania cez Worker ═══
+// ═══ API – session token (žiadne heslá v HTML!) ═══
+function apiHeaders(){
+  return {'Content-Type':'application/json','X-Session-Token':sessionToken||''};
+}
 async function apiGet(action=''){
-  const r=await fetch(WORKER+(action?'?action='+action:''),{headers:{'Content-Type':'application/json','X-App-Token':APP_TOKEN}});
+  const r=await fetch(WORKER+(action?'?action='+action:''),{headers:apiHeaders()});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
 async function apiPost(action,payload={}){
-  const r=await fetch(WORKER,{method:'POST',
-    headers:{'Content-Type':'application/json','X-App-Token':APP_TOKEN},
+  const r=await fetch(WORKER,{method:'POST',headers:apiHeaders(),
     body:JSON.stringify({action,...payload})});
   const j=await r.json();
   if(!j.ok) throw new Error(j.error);
   return j.result;
+}
+async function apiLogin(uid,pwd,role){
+  const r=await fetch(WORKER+'/login',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({uid,pwd,role})});
+  return r.json();
 }
 
 // ═══ HELPERS ═══
@@ -365,13 +360,24 @@ function Login({users,config,onLogin}){
   const [uid2,setUid]=useState('');
   const [pwd,setPwd]=useState('');
   const [err,setErr]=useState('');
+  const [loading,setLoading]=useState(false);
   const handle=async()=>{
     if(!uid2){setErr('Vyberte meno.');return;}
     if(Date.now()<loginLockedUntil){const s=Math.ceil((loginLockedUntil-Date.now())/1000);setErr(`Príliš veľa pokusov. Počkajte ${s}s.`);return;}
+    setLoading(true);
     const selUser=users.find(u=>u.id===uid2);
-    const ok=await checkPassword(pwd,selUser?.role||'u');
-    if(!ok){loginAttempts++;if(loginAttempts>=5){loginLockedUntil=Date.now()+30000;loginAttempts=0;}setErr('Nesprávne heslo.'+(loginAttempts>=3?` (pokus ${loginAttempts}/5)`:''));return;}
-    loginAttempts=0;onLogin(uid2);
+    const res=await apiLogin(uid2,pwd,selUser?.role||'u');
+    setLoading(false);
+    if(!res.ok){
+      loginAttempts++;
+      if(loginAttempts>=5){loginLockedUntil=Date.now()+30000;loginAttempts=0;}
+      setErr('Nesprávne heslo.'+(loginAttempts>=3?` (pokus ${loginAttempts}/5)`:''));
+      return;
+    }
+    // Session token uložíme len do pamäte (nie localStorage)
+    sessionToken=res.token;
+    loginAttempts=0;
+    onLogin(uid2);
   };
   return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
     <div className="animate" style={{background:'#fff',borderRadius:20,padding:40,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
@@ -396,7 +402,7 @@ function Login({users,config,onLogin}){
       </Field>
       {err&&<div style={{background:'#FEF2F2',border:'1px solid #FECACA',borderRadius:8,padding:'8px 12px',fontSize:13,color:'#DC2626',marginBottom:12}}>⚠ {err}</div>}
       <button type="button" onClick={handle} style={{width:'100%',marginTop:4,padding:13,background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)',color:'#fff',border:'none',borderRadius:10,fontFamily:'inherit',fontSize:15,fontWeight:700,cursor:'pointer'}}>
-        Prihlásiť sa →
+        {loading?'Overujem…':'Prihlásiť sa →'}
       </button>
     </div>
   </div>;
