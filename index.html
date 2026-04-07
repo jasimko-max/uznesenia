@@ -378,7 +378,12 @@ function Login({users,config,onLogin}){
     sessionToken=res.token;
     loginAttempts=0;
     // Zaznamenaj prihlásenie – synchrónne cez normálne API
-    try { await apiPost('trackLogin',{uid:uid2}); } catch(_){}
+    try {
+      const tr = await apiPost('trackLogin',{uid:uid2});
+    } catch(err){
+      // Nezastaví prihlásenie, ale zobrazí chybu v console pre debug
+      console.warn('trackLogin error:', err.message);
+    }
     onLogin(uid2);
   };
   return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
