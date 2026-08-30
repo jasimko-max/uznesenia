@@ -1477,7 +1477,7 @@ function App(){
 
   // Znovu dotiahne dáta len ak sme ich nemali úplne čerstvé (šetrí zbytočný
   // round-trip pri bežnom "otvoril appku a hneď sa prihlásil" scenári).
-  const REFRESH_IF_OLDER_THAN=5000;
+  const REFRESH_IF_OLDER_THAN=30000;
   const refetchIfStale=async()=>{
     if(Date.now()-lastFetchRef.current<REFRESH_IF_OLDER_THAN) return data;
     try{
