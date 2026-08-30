@@ -662,6 +662,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {/* Status bar */}
     <div style={{marginBottom:14,padding:'9px 15px',borderRadius:10,border:'1px solid',
       borderColor:pm.published?'#BBF7D0':'#FDE68A',background:pm.published?'#F0FDF4':'#FFFBEB',
+      color:pm.published?'#15803D':'#92400E',
       display:'flex',alignItems:'center',gap:10,fontSize:13}}>
       {pm.published?<><span>✅</span><strong>Plán {mlabel(month)} je zverejnený</strong></>
         :<><span>📝</span><strong>Plán {mlabel(month)} je v príprave</strong></>}
