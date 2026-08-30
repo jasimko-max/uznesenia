@@ -568,7 +568,7 @@ function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
 // ═══════════════════════════════════════════
 // SEKCIA 1: PLÁN NA MESIAC
 // ═══════════════════════════════════════════
-function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
+function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onApproveAllAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
   const {plans,meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
   const [viewSy,setViewSy]=useState(()=>{
@@ -675,7 +675,10 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
 
     {/* Pending schválenie – len pre riaditeľa */}
     {isDir&&pending.length>0&&<div style={{marginBottom:13,background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:12,padding:13}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#B45309',marginBottom:8}}>🕐 Čakajú na schválenie ({pending.length})</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+        <div style={{fontSize:13,fontWeight:700,color:'#B45309'}}>🕐 Čakajú na schválenie ({pending.length})</div>
+        {pending.length>1&&<Btn size="sm" variant="green" onClick={()=>{if(confirm(`Naozaj schváliť všetkých ${pending.length} čakajúcich aktivít?`))onApproveAllAct(month);}}>✓✓ Schváliť všetky ({pending.length})</Btn>}
+      </div>
       {pending.map(a=><div key={a.id} style={{background:'var(--card-bg)',border:'1px solid var(--bd)',borderRadius:9,padding:'10px 13px',marginBottom:7}}>
         <div style={{fontSize:13,fontWeight:600}}>{a.name}</div>
         <div style={{fontSize:12,color:'var(--text-muted)',margin:'3px 0'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls||'—'} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
@@ -1461,6 +1464,15 @@ function App(){
     showToast(approve?'Schválené ✓':'Zamietnuté.',approve?'ok':'inf');
     return trackedPost('updateActivityStatus',{id,month,status}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
+  const approveAllActivities=(month)=>{
+    const pendingIds=(data.plans[month]?.activities||[]).filter(a=>a.status==='pending').map(a=>a.id);
+    if(!pendingIds.length) return;
+    setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],
+      activities:plans[month].activities.map(a=>pendingIds.includes(a.id)?{...a,status:'approved'}:a)};return{...d,plans};});
+    showToast(`Schválených ${pendingIds.length} aktivít ✓`,'ok');
+    return Promise.all(pendingIds.map(id=>trackedPost('updateActivityStatus',{id,month,status:'approved'})))
+      .catch(e=>showToast('Chyba pri hromadnom schvaľovaní: '+e.message,'err'));
+  };
   const saveDay=day=>{
     setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
       plans[day.month]={...plans[day.month],days:[...plans[day.month].days.filter(x=>x.id!==day.id),day]};return{...d,plans};});
@@ -1545,7 +1557,7 @@ function App(){
         <main style={{flex:1,overflowY:'auto',padding:22}}>
           {view==='plan'&&<PlanView data={data} curUser={curUser}
             onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
-            onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
+            onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity} onApproveAllAct={approveAllActivities}
             onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
           {view==='pp'&&<MeetingView data={data} curUser={curUser} type="PP"
             onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
