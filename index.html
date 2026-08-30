@@ -430,9 +430,9 @@ function SettingsModal({config,onSave,onClose}){
 }
 
 // ─── NÁHĽAD PLÁNU (Preview Modal) ───
-function PlanPreviewModal({month,data,curUser,onClose}){
+function PlanPreviewModal({month,viewSy,data,curUser,onClose}){
   const {plans,meetings,tasks,users,groups,config}=data;
-  const planMonths=getPlanMonths(config.sy);
+  const planMonths=getPlanMonths(viewSy||config.sy);
   const [selMonth,setSelMonth]=useState(month);
   const pm=plans[selMonth]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>(m.date||'').startsWith(selMonth)).sort((a,b)=>a.date>b.date?1:-1);
@@ -569,8 +569,16 @@ function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
 function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
   const {plans,meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
-  const planMonths=getPlanMonths(config.sy);
-  const [month,setMonth]=useState(()=>currentPlanMonth(config.sy));
+  const [viewSy,setViewSy]=useState(()=>{
+    try{return localStorage.getItem('viewSy_'+curUser.id)||config.sy||'2025/2026';}catch{return config.sy||'2025/2026';}
+  });
+  const changeSy=sy=>{
+    setViewSy(sy);
+    try{localStorage.setItem('viewSy_'+curUser.id,sy);}catch{}
+    setMonth(currentPlanMonth(sy));
+  };
+  const planMonths=getPlanMonths(viewSy);
+  const [month,setMonth]=useState(()=>currentPlanMonth(viewSy));
   const [previewModal,setPreviewModal]=useState(false);
   const [actModal,setActModal]=useState(null); // null | {} | {existing}
   const [dayModal,setDayModal]=useState(false);
@@ -603,8 +611,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}
     .empty{color:#999;font-style:italic}.sig{margin-top:50px;text-align:right}</style></head><body>
     <h1>Plán práce na ${mlabel(month)}</h1>
-    <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · Školský rok ${config.sy||'2025/2026'}</h3>
-    <h2>A/ Štátne sviatky, dni pracovného pokoja, pamätné dni</h2>
+    <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · Školský rok ${viewSy||config.sy||'2025/2026'}</h3>
     ${days.length?`<table><tr><th>Dátum</th><th>Názov</th><th>Poznámka</th></tr>${days.map(d=>`<tr><td>${fmtS(d.date)}</td><td><b>${d.name}</b></td><td>${d.note||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <h2>B/ Pracovné porady, pedagogické rady, školenia, zasadnutia</h2>
     ${monthMeets.length?`<table><tr><th>Dátum</th><th>Typ</th><th>Názov</th><th>Čas</th><th>Miesto</th></tr>${monthMeets.map(m=>`<tr><td>${fmtS(m.date)}</td><td>${m.type}</td><td><b>${m.name}</b></td><td>${m.time||''}</td><td>${m.place||''}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
@@ -630,7 +637,13 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
         <Btn size="sm" variant="green" onClick={()=>setActModal({})}>📬 Aktivita</Btn>
       </div>
     </div>
-    <div style={{fontSize:13,color:'#8892B0',marginBottom:13}}>Školský rok {config.sy}</div>
+    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:13}}>
+      <span style={{fontSize:13,color:'#8892B0'}}>Školský rok:</span>
+      <select value={viewSy} onChange={e=>changeSy(e.target.value)} style={{fontSize:13,padding:'3px 8px',borderRadius:6,border:'1px solid #E2E6F0'}}>
+        {SY_OPTIONS.map(y=><option key={y} value={y}>{y}</option>)}
+      </select>
+      {viewSy!==config.sy&&<span style={{fontSize:11,color:'#D97706'}}>(zobrazuješ iný rok, než je aktuálne nastavený {config.sy})</span>}
+    </div>
 
     {/* Mesiac selector */}
     <div style={{display:'flex',gap:5,marginBottom:14,flexWrap:'wrap'}}>
@@ -665,6 +678,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
         <div style={{fontSize:12,color:'#8892B0',margin:'3px 0'}}>{a.date?fmtS(a.date):'bez dátumu'} · {a.cls||'—'} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div>
         {a.note&&<div style={{fontSize:12,color:'#4A5278',marginBottom:6}}>💬 {a.note}</div>}
         <div style={{display:'flex',gap:6}}>
+          <Btn size="sm" onClick={()=>setActModal(a)}>✎ Upraviť</Btn>
           <Btn size="sm" variant="green" onClick={()=>onApproveAct(a.id,month,true)}>✓ Schváliť</Btn>
           <Btn size="sm" variant="red" onClick={()=>onApproveAct(a.id,month,false)}>✕ Zamietnuť</Btn>
         </div>
@@ -766,7 +780,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {copyPlanModal&&<CopyPlanModal sourceMonth={month} sourcePlan={pm} sourceTasks={tasks} data={data}
       onSaveMeet={onSaveMeet} onSaveTask={onSaveTask} onSaveDay={onSaveDay} onSaveAct={onSaveAct}
       onClose={()=>setCopyPlanModal(false)} toast={toast}/>}
-    {previewModal&&<PlanPreviewModal month={month} data={data} curUser={curUser} onClose={()=>setPreviewModal(false)}/>}
+    {previewModal&&<PlanPreviewModal month={month} viewSy={viewSy} data={data} curUser={curUser} onClose={()=>setPreviewModal(false)}/>}
   </div>;
 }
 
@@ -1360,6 +1374,14 @@ function App(){
 
   const showToast=(msg,type='inf')=>setToast({msg,type});
 
+  // ── Ochrana pollingu pred prepísaním práve prebiehajúceho/čerstvého zápisu ──
+  const pendingRef=useRef(0);
+  const lastSaveRef=useRef(0);
+  const trackedPost=(action,payload)=>{
+    pendingRef.current++;
+    return apiPost(action,payload).finally(()=>{pendingRef.current--;lastSaveRef.current=Date.now();});
+  };
+
   useEffect(()=>{
     (async()=>{
       try{const d=await apiGet('init');setData(d);setStatus('login');}
@@ -1370,35 +1392,51 @@ function App(){
     })();
   },[]);
 
+  // ── Polling: pravidelne dotiahne čerstvé dáta, aby zmeny iných používateľov
+  // boli vidieť aj bez ručného obnovenia stránky. Preskočí, kým prebieha
+  // vlastný zápis, alebo krátko po ňom (nech nezrazí čerstvo pridané dáta). ──
+  useEffect(()=>{
+    if(status!=='app') return;
+    const iv=setInterval(async()=>{
+      if(pendingRef.current>0) return;
+      if(Date.now()-lastSaveRef.current<4000) return;
+      try{
+        const fresh=await apiGet('init');
+        setData(fresh);
+      }catch(e){/* tichá chyba, skúsime pri ďalšom polli */}
+    },15000);
+    return()=>clearInterval(iv);
+  },[status]);
+
   const handleLogin=id=>{const u=data.users.find(x=>x.id===id);setCurUser(u);setStatus('app');};
 
   // ─── OPTIMISTICKÉ API AKCIE – UI first, API na pozadí ───
   const saveTask=t=>{
     setData(d=>({...d,tasks:d.tasks.find(x=>x.id===t.id)?d.tasks.map(x=>x.id===t.id?t:x):[...d.tasks,t]}));
-    return apiPost('saveTask',{data:t}).catch(e=>showToast('Chyba ukladania: '+e.message,'err'));
+    return trackedPost('saveTask',{data:t}).catch(e=>showToast('Chyba ukladania: '+e.message,'err'));
   };
   const deleteTask=id=>{
     setData(d=>({...d,tasks:d.tasks.filter(t=>t.id!==id)}));
-    return apiPost('deleteTask',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('deleteTask',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const deleteMeeting=id=>{
     setData(d=>({...d,meetings:d.meetings.filter(m=>m.id!==id),tasks:d.tasks.filter(t=>t.mid!==id)}));
-    return apiPost('deleteMeeting',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('deleteMeeting',{id}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const changeTaskStatus=(taskId,manualStatus)=>{
     setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,manualStatus}:t)}));
     // Uložíme celú úlohu so statusom
     const task=data.tasks.find(t=>t.id===taskId);
-    if(task) apiPost('saveTask',{data:{...task,manualStatus}}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    if(task) trackedPost('saveTask',{data:{...task,manualStatus}}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveMeeting=m=>{
     setData(d=>({...d,meetings:d.meetings.find(x=>x.id===m.id)?d.meetings.map(x=>x.id===m.id?m:x):[...d.meetings,m]}));
-    return apiPost('saveMeeting',{data:m}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('saveMeeting',{data:m}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const markDone=(taskId,uid2,note)=>{
     const comp={done:true,note,date:new Date().toISOString().split('T')[0]};
     setData(d=>({...d,tasks:d.tasks.map(t=>t.id===taskId?{...t,completions:{...t.completions,[uid2]:comp}}:t)}));
-    return apiPost('updateCompletion',{taskId,uid:uid2,done:true,note}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('updateCompletion',{taskId,uid:uid2,done:true,note}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveActivity=act=>{
     setData(d=>{const plans={...d.plans};
@@ -1408,34 +1446,34 @@ function App(){
         ?plans[act.month].activities.map(a=>a.id===act.id?act:a)
         :[...plans[act.month].activities,act]};
       return{...d,plans};});
-    return apiPost('saveActivity',{data:act}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('saveActivity',{data:act}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const deleteActivity=(id,month)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
-    return apiPost('deleteActivity',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('deleteActivity',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const approveActivity=(id,month,approve)=>{
     const status=approve?'approved':'rejected';
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:approve?plans[month].activities.map(a=>a.id===id?{...a,status}:a):plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
     showToast(approve?'Schválené ✓':'Zamietnuté.',approve?'ok':'inf');
-    return apiPost('updateActivityStatus',{id,month,status}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('updateActivityStatus',{id,month,status}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveDay=day=>{
     setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
       plans[day.month]={...plans[day.month],days:[...plans[day.month].days.filter(x=>x.id!==day.id),day]};return{...d,plans};});
-    return apiPost('saveDay',{data:day}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('saveDay',{data:day}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const deleteDay=(id,month)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],days:plans[month].days.filter(x=>x.id!==id)};return{...d,plans};});
-    return apiPost('deleteDay',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('deleteDay',{id,month}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const publishPlan=(month,pub)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],published:pub};return{...d,plans};});
     showToast(pub?'Plán zverejnený! 📢':'Zverejnenie zrušené.',pub?'ok':'inf');
-    return apiPost('publishPlan',{month,published:pub}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    return trackedPost('publishPlan',{month,published:pub}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveConfig=async cfg=>{
-    await apiPost('saveConfig',{data:cfg});
+    await trackedPost('saveConfig',{data:cfg});
     setData(d=>({...d,config:{...d.config,...cfg}}));
     showToast('Nastavenia uložené.','ok');
   };
