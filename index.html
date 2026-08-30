@@ -79,6 +79,9 @@ async function apiGet(action=''){
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
+function withTimeout(promise,ms){
+  return Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Vypršal časový limit.')),ms))]);
+}
 async function apiPost(action,payload={}){
   const r=await fetch(WORKER,{method:'POST',headers:apiHeaders(),
     body:JSON.stringify({action,...payload})});
@@ -375,8 +378,8 @@ function Login({users,config,onLogin}){
     setLoading(true);
     const selUser=users.find(u=>u.id===uid2);
     const res=await apiLogin(uid2,pwd,selUser?.role||'u');
-    setLoading(false);
     if(!res.ok){
+      setLoading(false);
       loginAttempts++;
       if(loginAttempts>=5){loginLockedUntil=Date.now()+30000;loginAttempts=0;}
       setErr('Nesprávne heslo.'+(loginAttempts>=3?` (pokus ${loginAttempts}/5)`:''));
@@ -387,7 +390,8 @@ function Login({users,config,onLogin}){
     loginAttempts=0;
     // Fire-and-forget: trackLogin beží na pozadí, neblokuje prihlásenie
     apiPost('trackLogin',{uid:uid2}).catch(e=>console.warn('trackLogin:',e.message));
-    onLogin(uid2);
+    await onLogin(uid2);
+    setLoading(false);
   };
   return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F 0%,#2A9D6F 100%)',padding:20}}>
     <div className="animate" style={{background:'var(--card-bg)',borderRadius:20,padding:40,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,.18)'}}>
@@ -1469,7 +1473,12 @@ function App(){
     return()=>clearInterval(iv);
   },[status]);
 
-  const handleLogin=id=>{const u=data.users.find(x=>x.id===id);setCurUser(u);setStatus('app');};
+  const handleLogin=async(id)=>{
+    let d=data;
+    try{d=await withTimeout(apiGet('init'),8000);setData(d);}catch(e){/* pri chybe skúsime prihlásiť aspoň s tým, čo už máme */}
+    const u=d.users.find(x=>x.id===id);
+    setCurUser(u);setStatus('app');
+  };
 
   // ─── OPTIMISTICKÉ API AKCIE – UI first, API na pozadí ───
   const saveTask=t=>{
@@ -1585,7 +1594,10 @@ function App(){
           </div>
           <div style={{width:1,height:24,background:'var(--bd)'}}/>
           <DarkToggle dark={dark} setDark={setDark}/>
-          <Btn size="sm" onClick={()=>{setCurUser(null);setStatus('login');}}>Odhlásiť</Btn>
+          <Btn size="sm" onClick={async()=>{
+            setCurUser(null);setStatus('login');
+            try{const fresh=await withTimeout(apiGet('init'),8000);setData(fresh);}catch(e){/* necháme aspoň to, čo máme */}
+          }}>Odhlásiť</Btn>
         </div>
       </header>
 
