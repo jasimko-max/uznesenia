@@ -42,6 +42,12 @@ let sessionToken=null; // session token dostaneme po prihlásení
 let loginAttempts=0,loginLockedUntil=0;
 const MONTHS=['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 const SY_OPTIONS=['2024/2025','2025/2026','2026/2027','2027/2028'];
+function nextSy(sy){
+  const m=/^(\d{4})\/(\d{4})$/.exec(sy||'');
+  if(!m) return sy;
+  const y1=parseInt(m[1],10)+1,y2=parseInt(m[2],10)+1;
+  return `${y1}/${y2}`;
+}
 const AV_COLORS={blue:'#1E4B8F',green:'#2A9D6F',purple:'#7C3AED',amber:'#D97706',red:'#DC2626'};
 const MEET_BG={PR:'#FEF2F2',PP:'#EEF3FC',MZ:'#FFF7ED',PK:'#F5F3FF',VED:'#F0FDF4',RR:'#FDF2F8'};
 const MEET_FG={PR:'#DC2626',PP:'#1E4B8F',MZ:'#C2410C',PK:'#6D28D9',VED:'#15803D',RR:'#9D174D'};
@@ -413,6 +419,39 @@ function Login({users,config,onLogin}){
 }
 
 // ═══ NASTAVENIA MODÁL ═══
+function NewSchoolYearModal({config,plans,onSave,onClose}){
+  const [saving,setSaving]=useState(false);
+  const curSy=config.sy||'2025/2026';
+  const proposedSy=nextSy(curSy);
+  const curMonths=getPlanMonths(curSy);
+  let pendingCount=0,unpublishedCount=0,monthsWithData=0;
+  curMonths.forEach(m=>{
+    const pm=plans[m];
+    if(!pm) return;
+    monthsWithData++;
+    pendingCount+=(pm.activities||[]).filter(a=>a.status==='pending').length;
+    if(!pm.published) unpublishedCount++;
+  });
+  const save=async()=>{setSaving(true);await onSave({...config,sy:proposedSy});setSaving(false);onClose();};
+  return<Modal title="🎓 Založiť nový školský rok" onClose={onClose} maxWidth={460}
+    footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Zakladám…':`Založiť ${proposedSy}`}</Btn></>}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,padding:'14px 0 20px',fontSize:16,fontWeight:700}}>
+      <span style={{color:'var(--text-muted)'}}>{curSy}</span>
+      <span style={{color:'var(--text-muted)'}}>→</span>
+      <span style={{color:'#1E4B8F'}}>{proposedSy}</span>
+    </div>
+    {monthsWithData>0&&(pendingCount>0||unpublishedCount>0)&&
+      <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'10px 13px',marginBottom:14,fontSize:12.5,color:'#92400E'}}>
+        <div style={{fontWeight:700,marginBottom:4}}>⚠ Pred prechodom skontroluj rok {curSy}:</div>
+        {pendingCount>0&&<div>• {pendingCount} {pendingCount===1?'aktivita čaká':'aktivít čaká'} na schválenie</div>}
+        {unpublishedCount>0&&<div>• {unpublishedCount} {unpublishedCount===1?'mesiac nie je zverejnený':'mesiacov nie je zverejnených'}</div>}
+        <div style={{marginTop:4,fontWeight:400}}>Dáta ostanú zachované a prístupné, prepínačom školského roka sa k nim vždy vrátiš.</div>
+      </div>}
+    <div style={{fontSize:12.5,color:'var(--text-secondary)',lineHeight:1.5}}>
+      Založením nového školského roka sa zmení predvolený rok pre všetkých používateľov (v selectore hore budú od septembra {proposedSy.split('/')[0]} vidieť aktuálny rok ako predtým). Nič sa nezmaže — plány, porady a úlohy z {curSy} ostávajú prístupné cez prepínač "Školský rok".
+    </div>
+  </Modal>;
+}
 function SettingsModal({config,onSave,onClose}){
   const [sy,setSy]=useState(config.sy||'2025/2026');
   const [school,setSchool]=useState(config.school||'');
@@ -1375,6 +1414,7 @@ function App(){
   const [view,setView]=useState('plan');
   const [toast,setToast]=useState(null);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [newSyOpen,setNewSyOpen]=useState(false);
   const [dark,setDark]=useState(()=>{try{return localStorage.getItem('skolaDark')==='1';}catch{return false;}});
   useEffect(()=>{document.body.classList.toggle('dark',dark);},[]);
 
@@ -1521,6 +1561,7 @@ function App(){
         <div style={{width:1,height:24,background:'var(--bd)'}}/>
         <div style={{fontSize:12,fontWeight:600,background:'#EEF3FC',color:'#1E4B8F',padding:'2px 9px',borderRadius:20}}>{data.config.sy}</div>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
+          {isDir&&<Btn size="sm" variant="ghost" onClick={()=>setNewSyOpen(true)}>🎓 Nový školský rok</Btn>}
           {isDir&&<Btn size="sm" variant="ghost" onClick={()=>setSettingsOpen(true)}>⚙ Nastavenia</Btn>}
           <div style={{display:'flex',alignItems:'center',gap:7,fontSize:13,fontWeight:500,color:'var(--text-secondary)'}}>
             <Avatar uid={curUser.id} users={data.users} size={30}/>
@@ -1568,6 +1609,7 @@ function App(){
     </div>
 
     {settingsOpen&&<SettingsModal config={data.config} onSave={saveConfig} onClose={()=>setSettingsOpen(false)}/>}
+    {newSyOpen&&<NewSchoolYearModal config={data.config} plans={data.plans} onSave={saveConfig} onClose={()=>setNewSyOpen(false)}/>}
     {toast&&<Toast {...toast} onClose={()=>setToast(null)}/>}
   </>;
 }
