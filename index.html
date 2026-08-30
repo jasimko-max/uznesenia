@@ -436,7 +436,7 @@ function NewSchoolYearModal({config,plans,onSave,onClose}){
     pendingCount+=(pm.activities||[]).filter(a=>a.status==='pending').length;
     if(!pm.published) unpublishedCount++;
   });
-  const save=async()=>{setSaving(true);await onSave({...config,sy:proposedSy});setSaving(false);onClose();};
+  const save=async()=>{setSaving(true);try{await onSave({...config,sy:proposedSy});onClose();}catch(e){setSaving(false);}};
   return<Modal title="🎓 Založiť nový školský rok" onClose={onClose} maxWidth={460}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Zakladám…':`Založiť ${proposedSy}`}</Btn></>}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,padding:'14px 0 20px',fontSize:16,fontWeight:700}}>
@@ -461,7 +461,7 @@ function SettingsModal({config,onSave,onClose}){
   const [school,setSchool]=useState(config.school||'');
   const [dir,setDir]=useState(config.dir||'');
   const [saving,setSaving]=useState(false);
-  const save=async()=>{setSaving(true);await onSave({sy,school,dir});setSaving(false);onClose();};
+  const save=async()=>{setSaving(true);try{await onSave({sy,school,dir});onClose();}catch(e){setSaving(false);}};
   return<Modal title="⚙ Nastavenia" onClose={onClose} maxWidth={440}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving?'Ukladám…':'Uložiť'}</Btn></>}>
     <Field label="Školský rok">
@@ -1552,9 +1552,14 @@ function App(){
     return trackedPost('publishPlan',{month,published:pub}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveConfig=async cfg=>{
-    await trackedPost('saveConfig',{data:cfg});
-    setData(d=>({...d,config:{...d.config,...cfg}}));
-    showToast('Nastavenia uložené.','ok');
+    try{
+      await trackedPost('saveConfig',{data:cfg});
+      setData(d=>({...d,config:{...d.config,...cfg}}));
+      showToast('Nastavenia uložené.','ok');
+    }catch(e){
+      showToast('Chyba pri ukladaní: '+e.message,'err');
+      throw e; // nech vie aj volajúci modál (napr. resetnúť tlačidlo), že sa to nepodarilo
+    }
   };
 
   if(status==='loading') return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#1E4B8F,#2A9D6F)'}}>
