@@ -1446,10 +1446,11 @@ function App(){
     pendingRef.current++;
     return apiPost(action,payload).finally(()=>{pendingRef.current--;lastSaveRef.current=Date.now();});
   };
+  const lastFetchRef=useRef(0);
 
   useEffect(()=>{
     (async()=>{
-      try{const d=await apiGet('init');setData(d);setStatus('login');}
+      try{const d=await apiGet('init');setData(d);lastFetchRef.current=Date.now();setStatus('login');}
       catch(e){
         showToast('Chyba pripojenia: '+e.message,'err');
         setTimeout(()=>{setData({config:{sy:'2025/2026',school:'ZŠ s MŠ Višňové 446',dir:'Mgr. Ján Šimko'},users:[],groups:[],meetings:[],tasks:[],plans:{}});setStatus('login');},2000);
@@ -1468,14 +1469,27 @@ function App(){
       try{
         const fresh=await apiGet('init');
         setData(fresh);
+        lastFetchRef.current=Date.now();
       }catch(e){/* tichá chyba, skúsime pri ďalšom polli */}
     },15000);
     return()=>clearInterval(iv);
   },[status]);
 
+  // Znovu dotiahne dáta len ak sme ich nemali úplne čerstvé (šetrí zbytočný
+  // round-trip pri bežnom "otvoril appku a hneď sa prihlásil" scenári).
+  const REFRESH_IF_OLDER_THAN=5000;
+  const refetchIfStale=async()=>{
+    if(Date.now()-lastFetchRef.current<REFRESH_IF_OLDER_THAN) return data;
+    try{
+      const fresh=await withTimeout(apiGet('init'),8000);
+      setData(fresh);
+      lastFetchRef.current=Date.now();
+      return fresh;
+    }catch(e){ return data; /* pri chybe necháme aspoň to, čo už máme */ }
+  };
+
   const handleLogin=async(id)=>{
-    let d=data;
-    try{d=await withTimeout(apiGet('init'),8000);setData(d);}catch(e){/* pri chybe skúsime prihlásiť aspoň s tým, čo už máme */}
+    const d=await refetchIfStale();
     const u=d.users.find(x=>x.id===id);
     setCurUser(u);setStatus('app');
   };
@@ -1601,7 +1615,7 @@ function App(){
           <DarkToggle dark={dark} setDark={setDark}/>
           <Btn size="sm" onClick={async()=>{
             setCurUser(null);setStatus('login');
-            try{const fresh=await withTimeout(apiGet('init'),8000);setData(fresh);}catch(e){/* necháme aspoň to, čo máme */}
+            await refetchIfStale();
           }}>Odhlásiť</Btn>
         </div>
       </header>
