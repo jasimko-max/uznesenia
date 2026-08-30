@@ -610,12 +610,27 @@ function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
 function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onApproveAllAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
   const {plans,meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
-  const [viewSy,setViewSy]=useState(()=>{
-    try{return localStorage.getItem('viewSy_'+curUser.id)||config.sy||'2025/2026';}catch{return config.sy||'2025/2026';}
-  });
+  const readStoredViewSy=()=>{
+    try{
+      const raw=localStorage.getItem('viewSy_'+curUser.id);
+      if(!raw) return config.sy;
+      const obj=JSON.parse(raw);
+      // Lokálnu voľbu rešpektujeme len ak sa odvtedy oficiálne nezmenil školský rok
+      // (inak by prechod na nový rok od riaditeľa zostal učiteľovi navždy skrytý).
+      if(obj&&obj.baseSy===config.sy) return obj.sy;
+      return config.sy;
+    }catch{return config.sy;}
+  };
+  const [viewSy,setViewSy]=useState(readStoredViewSy);
+  useEffect(()=>{
+    // Keď sa config.sy zmení (napr. riaditeľ založil nový rok, dáta došli pollingom),
+    // prepočítame, či má zmysel rešpektovať uloženú lokálnu voľbu, alebo naskočiť na nový rok.
+    const sy=readStoredViewSy();
+    if(sy!==viewSy){setViewSy(sy);setMonth(currentPlanMonth(sy));}
+  },[config.sy]);
   const changeSy=sy=>{
     setViewSy(sy);
-    try{localStorage.setItem('viewSy_'+curUser.id,sy);}catch{}
+    try{localStorage.setItem('viewSy_'+curUser.id,JSON.stringify({sy,baseSy:config.sy}));}catch{}
     setMonth(currentPlanMonth(sy));
   };
   const planMonths=getPlanMonths(viewSy);
