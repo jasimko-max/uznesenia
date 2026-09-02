@@ -755,17 +755,17 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
 
     {/* Modály */}
     {actModal!==null&&<ActModal existing={actModal?.id?actModal:null} month={month} data={data} curUser={curUser} planMonths={planMonths}
-      onSave={async d=>{await onSaveAct(d);setActModal(null);toast(curUser.role==='r'?'Aktivita uložená.':'Odoslaná na schválenie 📬','ok');}}
+      onSave={d=>{onSaveAct(d);setActModal(null);toast(curUser.role==='r'?'Aktivita uložená.':'Odoslaná na schválenie 📬','ok');}}
       onClose={()=>setActModal(null)}/>}
-    {dayModal&&<DayModal month={month} planMonths={planMonths} onSave={async d=>{await onSaveDay(d);setDayModal(false);toast('Uložené.','ok');}} onClose={()=>setDayModal(false)}/>}
+    {dayModal&&<DayModal month={month} planMonths={planMonths} onSave={d=>{onSaveDay(d);setDayModal(false);toast('Uložené.','ok');}} onClose={()=>setDayModal(false)}/>}
     {taskModal!==null&&<PlanTaskModal task={taskModal} month={month} data={data} planMonths={planMonths}
-      onSave={async d=>{await onSaveTask(d);setTaskModal(null);toast('Úloha uložená.','ok');}}
+      onSave={d=>{onSaveTask(d);setTaskModal(null);toast('Úloha uložená.','ok');}}
       onClose={()=>setTaskModal(null)}/>}
     {meetModal&&<MeetModal data={data} planMonths={planMonths} defaultMonth={month}
       onSave={async d=>{await onSaveMeet(d);setMeetModal(false);toast('Porada pridaná.','ok');}}
       onClose={()=>setMeetModal(false)}/>}
     {editMeetModal&&<MeetModal existing={editMeetModal} data={data} planMonths={planMonths} defaultMonth={month}
-      onSave={async d=>{await onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
+      onSave={d=>{onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
       onClose={()=>setEditMeetModal(null)}/>}
     {copyPlanModal&&<CopyPlanModal sourceMonth={month} sourcePlan={pm} sourceTasks={tasks} data={data}
       onSaveMeet={onSaveMeet} onSaveTask={onSaveTask} onSaveDay={onSaveDay} onSaveAct={onSaveAct}
@@ -1104,7 +1104,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
       onSave={async d=>{await onSaveMeet(d);setMeetModal(false);setSelId(d.id);toast(`${typeName} pridaná.`,'ok');}}
       onClose={()=>setMeetModal(false)}/>}
     {editMeetModal&&<MeetModal existing={editMeetModal} type={type} data={data} planMonths={getPlanMonths(config.sy)}
-      onSave={async d=>{await onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
+      onSave={d=>{onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
       onClose={()=>setEditMeetModal(null)}/>}
     {confirmDelMeet&&<Modal title="Vymazať poradu?" onClose={()=>setConfirmDelMeet(null)} maxWidth={360}
       footer={<><Btn onClick={()=>setConfirmDelMeet(null)}>Zrušiť</Btn><Btn variant="red" onClick={()=>{onDeleteMeet(confirmDelMeet);setConfirmDelMeet(null);if(sel?.id===confirmDelMeet)setSelId(null);toast('Porada vymazaná.');}}>Vymazať</Btn></>}>
@@ -1405,6 +1405,7 @@ function App(){
     return apiPost('updateCompletion',{taskId,uid:uid2,done:true,note}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveActivity=act=>{
+    // Optimistická aktualizácia – zobraz okamžite
     setData(d=>{const plans={...d.plans};
       if(!plans[act.month])plans[act.month]={published:false,days:[],activities:[]};
       const existing=plans[act.month].activities.findIndex(a=>a.id===act.id);
@@ -1412,7 +1413,15 @@ function App(){
         ?plans[act.month].activities.map(a=>a.id===act.id?act:a)
         :[...plans[act.month].activities,act]};
       return{...d,plans};});
-    return apiPost('saveActivity',{data:act}).catch(e=>showToast('Chyba: '+e.message,'err'));
+    // API na pozadí – pri chybe rollback
+    apiPost('saveActivity',{data:act}).catch(e=>{
+      showToast('Aktivita sa neuložila: '+e.message,'err');
+      // Rollback – odstrán aktivitu ktorá sa neuložila
+      setData(d=>{const plans={...d.plans};
+        if(plans[act.month])plans[act.month]={...plans[act.month],
+          activities:plans[act.month].activities.filter(a=>a.id!==act.id)};
+        return{...d,plans};});
+    });
   };
   const deleteActivity=(id,month)=>{
     setData(d=>{const plans={...d.plans};if(plans[month])plans[month]={...plans[month],activities:plans[month].activities.filter(a=>a.id!==id)};return{...d,plans};});
