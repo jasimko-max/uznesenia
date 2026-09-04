@@ -248,7 +248,7 @@ function MemberPill({members,comp,users}){
   </div>;
 }
 
-function Modal({title,onClose,children,footer,maxWidth=560}){
+function Modal({title,onClose,children,footer,maxWidth=600}){
   return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.42)',
     zIndex:300,overflowY:'auto'}}
     onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -326,7 +326,7 @@ function RespSelector({value,onChange,users,groups}){
         <div style={{fontSize:12,fontWeight:600,color:on?'#1E4B8F':'#1a1f36'}}>{g.name}</div>
         <div style={{fontSize:11,color:'#8892B0'}}>{(g.memberIds||'').split(',').filter(Boolean).length} čl.</div>
       </div>;})}
-    </div>:<div style={{maxHeight:170,overflowY:'auto'}}>
+    </div>:<div style={{maxHeight:260,overflowY:'auto'}}>
       {nonDir.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
         <input type="checkbox" checked={on} onChange={()=>setSelPersons(p=>p.includes(u.id)?p.filter(x=>x!==u.id):[...p,u.id])} style={{width:14,height:14,accentColor:'#1E4B8F',flexShrink:0}}/>
         <Avatar uid={u.id} users={users} size={18}/>
@@ -822,6 +822,7 @@ function PlanTaskModal({task,month,data,planMonths,onSave,onClose}){
 function ActModal({existing,month,data,curUser,planMonths,onSave,onClose}){
   const {users,groups}=data;
   const isEdit=!!existing?.id;
+  // maxWidth pre ActModal je 680 – viac priestoru pre zodpovedných
   const [name,setName]=useState(existing?.name||'');
   const [dateType,setDateType]=useState(existing?.dateType||'exact');
   const [date,setDate]=useState(existing?.date||'');
@@ -845,7 +846,7 @@ function ActModal({existing,month,data,curUser,planMonths,onSave,onClose}){
       note,status:isEdit?(existing?.status||'approved'):(curUser.role==='r'?'approved':'pending'),month:selMonth});
     setSaving(false);
   };
-  return<Modal title={isEdit?'Upraviť aktivitu':'Pridať aktivitu'} onClose={onClose}
+  return<Modal title={isEdit?'Upraviť aktivitu':'Pridať aktivitu'} onClose={onClose} maxWidth={680}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="green" onClick={save} disabled={saving}>{saving?'Ukladám…':isEdit?'Uložiť':'Odoslať'}</Btn></>}>
     <Field label="Názov aktivity"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Napr. Exkurzia – Bratislava"/></Field>
     <Field label="Typ termínu">
