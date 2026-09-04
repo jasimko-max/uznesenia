@@ -13,7 +13,6 @@
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
   body { background: #f0f2f5; color: #1e293b; }
   
-  /* Universal Modal Container Fix */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -48,7 +47,7 @@
     padding: 24px;
     overflow-y: auto;
     flex: 1;
-    min-height: 0; /* KRITICKÉ: Zabezpečuje správne fungovanie skrolovania vo flexboxe */
+    min-height: 0;
   }
   .modal-footer {
     padding: 16px 24px;
@@ -67,7 +66,6 @@
 <script type="text/babel">
   function App() {
     const [view, setView] = React.useState('plan');
-    const [settingsOpen, setSettingsOpen] = React.useState(false);
     const [toast, setToast] = React.useState(null);
 
     const showToast = (msg) => {
@@ -83,8 +81,6 @@
           </div>
           <div style={{padding:20,flex:1}}>
             <button onClick={()=>setView('plan')} style={{width:'100%',padding:'10px',background:view==='plan'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Plán aktivít</button>
-            <button onClick={()=>setView('pp')} style={{width:'100%',padding:'10px',background:view==='pp'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Poradná porada (PP)</button>
-            <button onClick={()=>setView('pr')} style={{width:'100%',padding:'10px',background:view==='pr'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Pedagogická rada (PR)</button>
           </div>
         </nav>
 
@@ -98,7 +94,7 @@
   }
 
   function PlanView({ toast }) {
-    const [modalOpen, setModalOpen] = React.useState(true); // Otvorené pre ukážku
+    const [modalOpen, setModalOpen] = React.useState(true);
     const [actName, setActName] = React.useState('');
     const [termType, setTermType] = React.useState('datum');
 
@@ -106,7 +102,7 @@
       <div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <h2>Plán práce na mesiac</h2>
-          <button onClick={()=>setModalOpen(true)} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 16px',borderRadius:6,cursor:&#39;pointer&#39;}}>+ Aktivita</button>
+          <button onClick={()=>setModalOpen(true)} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 16px',borderRadius:6,cursor:'pointer'}}>+ Aktivita</button>
         </div>
 
         {modalOpen && (
