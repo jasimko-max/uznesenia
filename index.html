@@ -5,12 +5,14 @@
 <link rel="icon" type="image/png" href="data:image/png;base64,/vj/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh...">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Školský manažér – ZŠ s MŠ Višňové</title>
+<!-- React & Babel CDN -->
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
   body { background: #f0f2f5; color: #1e293b; }
+  
   /* Universal Modal Container Fix */
   .modal-overlay {
     position: fixed;
@@ -40,11 +42,13 @@
     align-items: center;
     justify-content: space-between;
     background: #f8fafc;
+    flex-shrink: 0;
   }
   .modal-body {
     padding: 24px;
     overflow-y: auto;
     flex: 1;
+    min-height: 0; /* KRITICKÉ: Zabezpečuje správne fungovanie skrolovania vo flexboxe */
   }
   .modal-footer {
     padding: 16px 24px;
@@ -53,6 +57,7 @@
     justify-content: flex-end;
     gap: 12px;
     background: #f8fafc;
+    flex-shrink: 0;
   }
 </style>
 </head>
@@ -61,8 +66,6 @@
 
 <script type="text/babel">
   function App() {
-    const [data, setData] = React.useState(null);
-    const [curUser, setCurUser] = React.useState(null);
     const [view, setView] = React.useState('plan');
     const [settingsOpen, setSettingsOpen] = React.useState(false);
     const [toast, setToast] = React.useState(null);
@@ -71,20 +74,6 @@
       setToast(msg);
       setTimeout(() => setToast(null), 3000);
     };
-
-    const saveMeeting = (m) => { showToast('Uložené'); };
-    const deleteMeeting = (id) => { showToast('Vymazané'); };
-    const saveTask = (t) => { showToast('Úloha uložená'); };
-    const deleteTask = (id) => { showToast('Úloha vymazaná'); };
-    const saveActivity = (a) => { showToast('Aktivita uložená'); };
-    const deleteActivity = (id) => { showToast('Aktivita vymazaná'); };
-    const approveActivity = (id) => { showToast('Schválené'); };
-    const saveDay = (d) => { showToast('Deň uložený'); };
-    const deleteDay = (d) => { showToast('Deň vymazaný'); };
-    const publishPlan = () => { showToast('Plán publikovaný'); };
-    const markDone = (id) => { showToast('Označené ako hotové'); };
-    const changeTaskStatus = (id, st) => { showToast('Stav zmenený'); };
-    const saveConfig = (cfg) => { setSettingsOpen(false); showToast('Nastavenia uložené'); };
 
     return (
       <div style={{display:'flex',height:'100vh',overflow:'hidden'}}>
@@ -100,76 +89,81 @@
         </nav>
 
         <main style={{flex:1,overflowY:'auto',padding:22,position:'relative'}}>
-          {view==='plan' && <PlanView data={data} curUser={curUser}
-            onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
-            onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
-            onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
-          {view==='pp' && <MeetingView data={data} curUser={curUser} type="PP"
-            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
-          {view==='pr' && <MeetingView data={data} curUser={curUser} type="PR"
-            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
+          {view==='plan' && <PlanView toast={showToast}/>}
         </main>
 
-        {settingsOpen && <SettingsModal config={data?.config || {}} onSave={saveConfig} onClose={()=>setSettingsOpen(false)}/>}
         {toast && <div style={{position:'fixed',bottom:20,right:20,background:'#0f172a',color:'#fff',padding:'12px 20px',borderRadius:8,zIndex:2000}}>{toast}</div>}
       </div>
     );
   }
 
-  // Example PlanView incorporating modal with correct classes (.modal-overlay, .modal-box, .modal-header, .modal-body, .modal-footer)
-  function PlanView({ onSaveAct }) {
-    const [modalOpen, setModalOpen] = React.useState(false);
+  function PlanView({ toast }) {
+    const [modalOpen, setModalOpen] = React.useState(true); // Otvorené pre ukážku
     const [actName, setActName] = React.useState('');
-    const [actDesc, setActDesc] = React.useState('');
+    const [termType, setTermType] = React.useState('datum');
 
     return (
       <div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <h2>Plán aktivít</h2>
-          <button onClick={()=>setModalOpen(true)} style={{background:'#3b82f6',color:'#fff',border:'none',padding:'10px 16px',borderRadius:6,cursor:'pointer'}}>+ Novú aktivitu</button>
+          <h2>Plán práce na mesiac</h2>
+          <button onClick={()=>setModalOpen(true)} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 16px',borderRadius:6,cursor:&#39;pointer&#39;}}>+ Aktivita</button>
         </div>
 
         {modalOpen && (
           <div className="modal-overlay" onClick={()=>setModalOpen(false)}>
             <div className="modal-box" onClick={(e)=>e.stopPropagation()}>
               <div className="modal-header">
-                <h3>Pridať novú aktivitu</h3>
-                <button onClick={()=>setModalOpen(false)} style={{background:'none',border:'none',fontSize:18,cursor:'pointer'}}>✕</button>
+                <h3 style={{fontSize:18,fontWeight:600}}>Pridať aktivitu</h3>
+                <button onClick={()=>setModalOpen(false)} style={{background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#64748b'}}>✕</button>
               </div>
+              
               <div className="modal-body">
                 <div style={{marginBottom:16}}>
-                  <label style={{display:'block',marginBottom:6,fontWeight:500}}>Názov aktivity</label>
-                  <input type="text" value={actName} onChange={(e)=>setActName(e.target.value)} style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6}} placeholder="Zadajte názov..."/>
+                  <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Názov aktivity</label>
+                  <input type="text" value={actName} onChange={(e)=>setActName(e.target.value)} style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6,fontSize:14}} placeholder="Napr. Exkurzia – Bratislava"/>
                 </div>
+
                 <div style={{marginBottom:16}}>
-                  <label style={{display:'block',marginBottom:6,fontWeight:500}}>Popis / Podrobnosti</label>
-                  <textarea rows="6" value={actDesc} onChange={(e)=>setActDesc(e.target.value)} style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6}} placeholder="Zadajte podrobnosti..."></textarea>
+                  <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Typ termínu</label>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                    <button onClick={()=>setTermType('datum')} style={{padding:10,borderRadius:6,border:termType==='datum'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='datum'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Dátum</button>
+                    <button onClick={()=>setTermType('rozsah')} style={{padding:10,borderRadius:6,border:termType==='rozsah'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='rozsah'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Rozsah</button>
+                    <button onClick={()=>setTermType('mesiac')} style={{padding:10,borderRadius:6,border:termType==='mesiac'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='mesiac'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Mesiac</button>
+                  </div>
                 </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+                  <div>
+                    <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Dátum</label>
+                    <input type="text" placeholder="dd. mm. rrrr" style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6,fontSize:14}}/>
+                  </div>
+                  <div>
+                    <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Pre koho (trieda)</label>
+                    <input type="text" placeholder="9.A, všetci..." style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6,fontSize:14}}/>
+                  </div>
+                </div>
+
                 <div style={{marginBottom:16}}>
-                  <label style={{display:'block',marginBottom:6,fontWeight:500}}></label>
-                  <p style={{color:'#64748b',fontSize:14}}>Všetky ďalšie polia formulára sa teraz pohodlne zmestia do dostupnej výšky okna a scrolujú sa iba tu, bez posúvania celého pozadia stránky.</p>
+                  <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Mesiac plánu</label>
+                  <select style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6,fontSize:14,background:'#fff'}}>
+                    <option>September 2026</option>
+                    <option>Október 2026</option>
+                  </select>
+                </div>
+
+                <div style={{marginBottom:16}}>
+                  <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Podrobnosti / Poznámka</label>
+                  <textarea rows="4" style={{width:'100%',padding:10,border:'1px solid #cbd5e1',borderRadius:6,fontSize:14}} placeholder="Zadajte doplňujúce informácie..."></textarea>
                 </div>
               </div>
+
               <div className="modal-footer">
-                <button onClick={()=>setModalOpen(false)} style={{padding:'8px 16px',background:'#e2e8f0',border:'none',borderRadius:6,cursor:'pointer'}}>Zrušiť</button>
-                <button onClick={()=>{ onSaveAct({name:actName}); setModalOpen(false); }} style={{padding:'8px 16px',background:'#3b82f6',color:'#fff',border:'none',borderRadius:6,cursor:'pointer'}}>Uložiť</button>
+                <button onClick={()=>setModalOpen(false)} style={{padding:'10px 16px',background:'#e2e8f0',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Zrušiť</button>
+                <button onClick={()=>{ toast('Aktivita uložená'); setModalOpen(false); }} style={{padding:'10px 16px',background:'#3b82f6',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Uložiť aktivitu</button>
               </div>
             </div>
           </div>
         )}
-      </div>
-    );
-  }
-
-  function MeetingView() { return <div>Správa porád</div>; }
-  function SettingsModal({onClose}) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box" onClick={(e)=>e.stopPropagation()}>
-          <div className="modal-header"><h3>Nastavenia</h3><button onClick={onClose}>✕</button></div>
-          <div className="modal-body"><p>Obsah nastavení...</p></div>
-          <div className="modal-footer"><button onClick={onClose}>Zavrieť</button></div>
-        </div>
       </div>
     );
   }
