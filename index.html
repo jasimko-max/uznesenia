@@ -13,6 +13,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
   body { background: #f0f2f5; color: #1e293b; }
   
+  /* Opravené modálne okno – zabraňuje orezávaniu a šedým plochám */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -47,7 +48,7 @@
     padding: 24px;
     overflow-y: auto;
     flex: 1;
-    min-height: 0;
+    min-height: 0; /* KRITICKÉ: Zabezpečuje správne rolovanie vo flexboxe bez presahov */
   }
   .modal-footer {
     padding: 16px 24px;
@@ -81,11 +82,15 @@
           </div>
           <div style={{padding:20,flex:1}}>
             <button onClick={()=>setView('plan')} style={{width:'100%',padding:'10px',background:view==='plan'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Plán aktivít</button>
+            <button onClick={()=>setView('pp')} style={{width:'100%',padding:'10px',background:view==='pp'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Poradná porada (PP)</button>
+            <button onClick={()=>setView('pr')} style={{width:'100%',padding:'10px',background:view==='pr'?'#3b82f6':'transparent',border:'none',color:'#fff',textAlign:'left',borderRadius:6,cursor:'pointer',marginBottom:8}}>Pedagogická rada (PR)</button>
           </div>
         </nav>
 
         <main style={{flex:1,overflowY:'auto',padding:22,position:'relative'}}>
           {view==='plan' && <PlanView toast={showToast}/>}
+          {view==='pp' && <div><h2>Poradná porada</h2><p style={{marginTop:10,color:'#64748b'}}>Obsah pre poradnú poradu...</p></div>}
+          {view==='pr' && <div><h2>Pedagogická rada</h2><p style={{marginTop:10,color:'#64748b'}}>Obsah pre pedagogickú radu...</p></div>}
         </main>
 
         {toast && <div style={{position:'fixed',bottom:20,right:20,background:'#0f172a',color:'#fff',padding:'12px 20px',borderRadius:8,zIndex:2000}}>{toast}</div>}
@@ -94,7 +99,7 @@
   }
 
   function PlanView({ toast }) {
-    const [modalOpen, setModalOpen] = React.useState(true);
+    const [modalOpen, setModalOpen] = React.useState(false); // Štandardne zatvorené
     const [actName, setActName] = React.useState('');
     const [termType, setTermType] = React.useState('datum');
 
@@ -103,6 +108,10 @@
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
           <h2>Plán práce na mesiac</h2>
           <button onClick={()=>setModalOpen(true)} style={{background:'#10b981',color:'#fff',border:'none',padding:'10px 16px',borderRadius:6,cursor:'pointer'}}>+ Aktivita</button>
+        </div>
+
+        <div style={{background:'#fff',padding:20,borderRadius:8,boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}}>
+          <p style={{color:'#64748b'}}>Zatiaľ nie sú pridané žiadne aktivity. Kliknutím na tlačidlo „+ Aktivita“ pridáte novú položku.</p>
         </div>
 
         {modalOpen && (
@@ -122,9 +131,9 @@
                 <div style={{marginBottom:16}}>
                   <label style={{display:'block',marginBottom:6,fontWeight:500,fontSize:14,color:'#334155'}}>Typ termínu</label>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                    <button onClick={()=>setTermType('datum')} style={{padding:10,borderRadius:6,border:termType==='datum'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='datum'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Dátum</button>
-                    <button onClick={()=>setTermType('rozsah')} style={{padding:10,borderRadius:6,border:termType==='rozsah'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='rozsah'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Rozsah</button>
-                    <button onClick={()=>setTermType('mesiac')} style={{padding:10,borderRadius:6,border:termType==='mesiac'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='mesiac'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Mesiac</button>
+                    <button type="button" onClick={()=>setTermType('datum')} style={{padding:10,borderRadius:6,border:termType==='datum'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='datum'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Dátum</button>
+                    <button type="button" onClick={()=>setTermType('rozsah')} style={{padding:10,borderRadius:6,border:termType==='rozsah'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='rozsah'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Rozsah</button>
+                    <button type="button" onClick={()=>setTermType('mesiac')} style={{padding:10,borderRadius:6,border:termType==='mesiac'?'2px solid #3b82f6':'1px solid #cbd5e1',background:termType==='mesiac'?'#eff6ff':'#fff',cursor:'pointer',fontWeight:500}}>Mesiac</button>
                   </div>
                 </div>
 
@@ -154,8 +163,8 @@
               </div>
 
               <div className="modal-footer">
-                <button onClick={()=>setModalOpen(false)} style={{padding:'10px 16px',background:'#e2e8f0',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Zrušiť</button>
-                <button onClick={()=>{ toast('Aktivita uložená'); setModalOpen(false); }} style={{padding:'10px 16px',background:'#3b82f6',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Uložiť aktivitu</button>
+                <button type="button" onClick={()=>setModalOpen(false)} style={{padding:'10px 16px',background:'#e2e8f0',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Zrušiť</button>
+                <button type="button" onClick={()=>{ toast('Aktivita uložená'); setModalOpen(false); }} style={{padding:'10px 16px',background:'#3b82f6',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontWeight:500}}>Uložiť aktivitu</button>
               </div>
             </div>
           </div>
