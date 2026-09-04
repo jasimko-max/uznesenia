@@ -249,25 +249,26 @@ function MemberPill({members,comp,users}){
 }
 
 function Modal({title,onClose,children,footer,maxWidth=560}){
-  return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.42)',zIndex:300,
-    display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}
+  return<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.42)',
+    zIndex:300,overflowY:'auto'}}
     onClick={e=>e.target===e.currentTarget&&onClose()}>
-    <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,
-      display:'flex',flexDirection:'column',
-      maxHeight:'90vh',
-      boxShadow:'0 24px 64px rgba(0,0,0,.2)',animation:'fadeIn .15s ease both'}}>
-      {/* Hlavička – vždy hore */}
-      <div style={{padding:'15px 22px 12px',borderBottom:'1px solid #E2E6F0',
-        display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
-        <div style={{fontSize:16,fontWeight:700}}>{title}</div>
-        <button type="button" onClick={onClose} style={{width:26,height:26,borderRadius:'50%',
-          border:'none',background:'#F0F4FA',cursor:'pointer',fontSize:14,color:'#4A5278'}}>✕</button>
+    {/* Wrapper: centruje modal; ak modal presiahne výšku – overlay scrolluje od vrchu */}
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',
+      minHeight:'100%',padding:'20px',boxSizing:'border-box'}}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'#fff',borderRadius:16,width:'100%',maxWidth,
+        boxShadow:'0 24px 64px rgba(0,0,0,.2)',animation:'fadeIn .15s ease both'}}>
+        <div style={{padding:'15px 22px 12px',borderBottom:'1px solid #E2E6F0',
+          display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontSize:16,fontWeight:700}}>{title}</div>
+          <button type="button" onClick={onClose} style={{width:26,height:26,
+            borderRadius:'50%',border:'none',background:'#F0F4FA',cursor:'pointer',
+            fontSize:14,color:'#4A5278'}}>✕</button>
+        </div>
+        <div style={{padding:'16px 22px'}}>{children}</div>
+        {footer&&<div style={{padding:'12px 22px',borderTop:'1px solid #E2E6F0',
+          display:'flex',justifyContent:'flex-end',gap:8}}>{footer}</div>}
       </div>
-      {/* Obsah – scrolluje sa vnútri okna */}
-      <div style={{padding:'16px 22px',overflowY:'auto',flex:'1 1 0%'}}>{children}</div>
-      {/* Päta – vždy dole */}
-      {footer&&<div style={{padding:'12px 22px',borderTop:'1px solid #E2E6F0',
-        display:'flex',justifyContent:'flex-end',gap:8,flexShrink:0}}>{footer}</div>}
     </div>
   </div>;
 }
