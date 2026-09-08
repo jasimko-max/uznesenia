@@ -121,6 +121,18 @@ function taskStatus(t,groups){
   if(dead&&dead.substring(0,10)<now) return 'po-termine';
   return 'otvorene';
 }
+function sortByOrder(list){return [...list].sort((a,b)=>(a.order??0)-(b.order??0));}
+// Presunie úlohu o 1 hore/dole v rámci zoznamu (list musí byť v aktuálnom poradí zobrazenia)
+// a prečísluje poradie – uloží len tie úlohy, ktorým sa poradie skutočne zmenilo.
+function moveTaskOrder(list,id,dir,onSaveTask){
+  const idx=list.findIndex(t=>t.id===id);
+  if(idx===-1) return;
+  const swapIdx=dir===-1?idx-1:idx+1;
+  if(swapIdx<0||swapIdx>=list.length) return;
+  const reordered=[...list];
+  [reordered[idx],reordered[swapIdx]]=[reordered[swapIdx],reordered[idx]];
+  reordered.forEach((t,i)=>{ if((t.order??0)!==i) onSaveTask({...t,order:i}); });
+}
 function deadLabel(t,month){
   if(t.taskType==='permanent') return '🔁 Stála úloha';
   if(t.taskType==='month') return '📅 '+mlabel(t.deadMonth||month||'');
@@ -299,25 +311,28 @@ function SectionCard({title,icon,children,action}){
 }
 
 // ═══ RESP SELECTOR ═══
+const RESP_PRESETS=['Riaditeľ školy','Zástupca RŠ','Vedúci MZ, PK, koordinátori'];
 function RespSelector({value,onChange,users,groups}){
-  const nonDir=users.filter(u=>u.role!=='r');
-  const [mode,setMode]=useState(value.type==='group'?'group':'persons');
+  const [mode,setMode]=useState(value.type==='group'?'group':value.type==='text'?'text':'persons');
   const [selGroup,setSelGroup]=useState(value.type==='group'?value.val:(groups[0]?.id||''));
   const [selPersons,setSelPersons]=useState(
     value.type==='persons'?(value.val||'').split(',').filter(Boolean):
     value.type==='single'?[value.val].filter(Boolean):[]
   );
+  const [text,setText]=useState(value.type==='text'?(value.val||''):'');
   useEffect(()=>{
     if(mode==='group') onChange({type:'group',val:selGroup});
+    else if(mode==='text') onChange({type:'text',val:text});
     else{if(selPersons.length===1) onChange({type:'single',val:selPersons[0]});
       else onChange({type:'persons',val:selPersons.join(',')});}
-  },[mode,selGroup,selPersons]);
+  },[mode,selGroup,selPersons,text]);
   const preview=mode==='group'?(groups.find(g=>g.id===selGroup)?.name||'—'):
+    mode==='text'?(text||'—'):
     selPersons.map(id=>users.find(u=>u.id===id)?.name?.split(' ').pop()||id).join(', ')||'—';
   return<div style={{background:'#F8FAFD',border:'1.5px solid #E2E6F0',borderRadius:10,padding:10}}>
     <div style={{display:'flex',gap:6,marginBottom:8}}>
-      {['group','persons'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'5px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
-        {m==='group'?'👥 Skupina':'👤 Osoby'}
+      {['group','persons','text'].map(m=><button type="button" key={m} onClick={()=>setMode(m)} style={{flex:1,padding:'5px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',borderColor:mode===m?'#1E4B8F':'#E2E6F0',background:mode===m?'#EEF3FC':'#fff',color:mode===m?'#1E4B8F':'#4A5278',cursor:'pointer'}}>
+        {m==='group'?'👥 Skupina':m==='persons'?'👤 Osoby':'✍️ Text'}
       </button>)}
     </div>
     {mode==='group'?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
@@ -326,8 +341,16 @@ function RespSelector({value,onChange,users,groups}){
         <div style={{fontSize:12,fontWeight:600,color:on?'#1E4B8F':'#1a1f36'}}>{g.name}</div>
         <div style={{fontSize:11,color:'#8892B0'}}>{(g.memberIds||'').split(',').filter(Boolean).length} čl.</div>
       </div>;})}
+    </div>:mode==='text'?<div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:7}}>
+        {RESP_PRESETS.map(p=><button type="button" key={p} onClick={()=>setText(p)}
+          style={{padding:'5px 10px',borderRadius:8,fontSize:12,fontWeight:600,border:'1.5px solid',
+            borderColor:text===p?'#1E4B8F':'#E2E6F0',background:text===p?'#EEF3FC':'#fff',
+            color:text===p?'#1E4B8F':'#4A5278',cursor:'pointer'}}>{p}</button>)}
+      </div>
+      <input value={text} onChange={e=>setText(e.target.value)} placeholder="Napíšte, kto je zodpovedný…"/>
     </div>:<div style={{maxHeight:260,overflowY:'auto'}}>
-      {nonDir.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
+      {users.map(u=>{const on=selPersons.includes(u.id);return<label key={u.id} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'0.5px solid #E2E6F0',cursor:'pointer'}}>
         <input type="checkbox" checked={on} onChange={()=>setSelPersons(p=>p.includes(u.id)?p.filter(x=>x!==u.id):[...p,u.id])} style={{width:14,height:14,accentColor:'#1E4B8F',flexShrink:0}}/>
         <Avatar uid={u.id} users={users} size={18}/>
         <span style={{fontSize:12,flex:1}}>{u.name}</span>
@@ -448,11 +471,11 @@ function PlanPreviewModal({month,data,curUser,onClose}){
   const [selMonth,setSelMonth]=useState(month);
   const pm=plans[selMonth]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>(m.date||'').startsWith(selMonth)).sort((a,b)=>a.date>b.date?1:-1);
-  const monthTasks=tasks.filter(t=>{
+  const monthTasks=sortByOrder(tasks.filter(t=>{
     if(t.mid==='plan-'+selMonth) return true;
     const m=meetings.find(x=>x.id===t.mid);
     return m&&(m.date||'').startsWith(selMonth);
-  });
+  }));
   const approved=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
   const days=(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1);
 
@@ -491,7 +514,7 @@ function PlanPreviewModal({month,data,curUser,onClose}){
           </div>],
           ['C/ Aktivity a podujatia',approved,a=><div key={a.id} style={{display:'flex',gap:10,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
             <span style={{fontWeight:700,color:'#2A9D6F',minWidth:90,fontSize:12}}>{a.date?fmtS(a.date):'—'}</span>
-            <span><strong>{a.name}</strong><span style={{fontSize:11,color:'#8892B0'}}> · {a.cls}</span></span>
+            <span><strong>{a.name}</strong><span style={{fontSize:11,color:'#8892B0'}}> · {a.cls}</span><span style={{fontSize:11,color:'#4A5278'}}> · 👤 {respLabel(a.respType||'single',a.respVal,users,groups)}</span></span>
           </div>],
           ['D/ Úlohy',monthTasks,t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
             <span style={{color:'#8892B0',minWidth:55,fontSize:11}}>{t.no||'—'}</span>
@@ -593,12 +616,12 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
 
   const pm=plans[month]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>(m.date||'').startsWith(month)).sort((a,b)=>a.date>b.date?1:-1);
-  // Úlohy: z porád v danom mesiaci + priame úlohy plánu (mid='plan-MESIAC')
-  const monthTasks=tasks.filter(t=>{
+  // Úlohy: z porád v danom mesiaci + priame úlohy plánu (mid='plan-MESIAC'), zoradené podľa poradia (order)
+  const monthTasks=sortByOrder(tasks.filter(t=>{
     if(t.mid==='plan-'+month) return true;
     const m=meetings.find(x=>x.id===t.mid);
     return m&&(m.date||'').startsWith(month);
-  });
+  }));
   const approved=(pm.activities||[]).filter(a=>a.status==='approved').sort((a,b)=>(a.date||'zzz')>(b.date||'zzz')?1:-1);
   const pending=(pm.activities||[]).filter(a=>a.status==='pending');
   const days=(pm.days||[]).sort((a,b)=>a.date>b.date?1:-1);
@@ -751,6 +774,8 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
                 </div>
                 <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center'}}>
                   <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,-1,onSaveTask)} style={{padding:'2px 6px'}}>▲</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,1,onSaveTask)} style={{padding:'2px 6px'}}>▼</Btn>}
                   {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)} style={{padding:'2px 7px'}}>✎</Btn>}
                   {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)} style={{padding:'2px 6px'}}>✕</Btn>}
                 </div>
@@ -794,13 +819,13 @@ function PlanTaskModal({task,month,data,planMonths,onSave,onClose}){
   const [deadTo,setDeadTo]=useState((task.deadTo||'').substring(0,10));
   const [deadMonth,setDeadMonth]=useState(task.deadMonth||month);
   const [note,setNote]=useState(task.note||'');
-  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
+  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||''});
   const [saving,setSaving]=useState(false);
   const save=async()=>{
     if(!txt.trim()) return;
     setSaving(true);
     const cnt=data.tasks.filter(t=>t.mid==='plan-'+month).length+(isNew?1:0);
-    await onSave({id:task.id||uid(),mid:'plan-'+month,no:task.no||'P-'+cnt,
+    await onSave({id:task.id||uid(),mid:'plan-'+month,no:task.no||'P-'+cnt,order:task.order??Date.now(),
       txt:txt.trim(),cat,taskType,dead:taskType==='permanent'||taskType==='month'?'':dead,
       deadTo:taskType==='range'?deadTo:'',deadMonth:taskType==='month'?deadMonth:'',
       note,respType:resp.type,respVal:resp.val,completions:task.completions||{}});
@@ -974,7 +999,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
   const [doneModal,setDoneModal]=useState(null);
 
   const sel=myMeetings.find(m=>m.id===selId)||myMeetings[0]||null;
-  const myTasks=sel?tasks.filter(t=>t.mid===sel.id):[];
+  const myTasks=sel?sortByOrder(tasks.filter(t=>t.mid===sel.id)):[];
   const typeName=MEET_NAMES[type]||type;
 
   const printMeeting=()=>{
@@ -1102,6 +1127,8 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
                 <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center'}}>
                   <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
                   {isMyTask&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(myTasks,t.id,-1,onSaveTask)}>▲</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(myTasks,t.id,1,onSaveTask)}>▼</Btn>}
                   {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)}>✎</Btn>}
                   {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)}>✕</Btn>}
                 </div>
@@ -1298,7 +1325,7 @@ function FullTaskModal({task,meetId,type,data,planMonths,onSave,onClose}){
   const [deadTo,setDeadTo]=useState((task.deadTo||'').substring(0,10));
   const [deadMonth,setDeadMonth]=useState(task.deadMonth||planMonths[0]||'');
   const [note,setNote]=useState(task.note||'');
-  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||users.find(u=>u.role!=='r')?.id||''});
+  const [resp,setResp]=useState({type:task.respType||'single',val:task.respVal||''});
   const [saving,setSaving]=useState(false);
   const typeMeetings=type?meetings.filter(m=>m.type===type):meetings;
   const meetList=typeMeetings.length?typeMeetings:meetings;
@@ -1307,7 +1334,7 @@ function FullTaskModal({task,meetId,type,data,planMonths,onSave,onClose}){
     setSaving(true);
     const m=meetings.find(x=>x.id===mid);
     const cnt=data.tasks.filter(t=>t.mid===mid).length+(isNew?1:0);
-    await onSave({id:task.id||uid(),mid,no:task.no||(m?.type||type||'U')+'-'+cnt,
+    await onSave({id:task.id||uid(),mid,no:task.no||(m?.type||type||'U')+'-'+cnt,order:task.order??Date.now(),
       txt:txt.trim(),cat,taskType,
       dead:taskType==='permanent'||taskType==='month'?'':dead,
       deadTo:taskType==='range'?deadTo:'',
