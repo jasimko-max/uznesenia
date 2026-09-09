@@ -668,6 +668,84 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);
   };
 
+  const secA=<SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓"
+          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setDayModal({})}>+</Btn>}>
+          {!days.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne.</div>}
+          {days.map(d=><div key={d.id} style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:isMobile?2:9,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:isMobile?0:85,fontSize:12,flexShrink:0}}>{fmtS(d.date)}</div>
+            <div style={{flex:1,display:'flex',alignItems:'flex-start',gap:6}}>
+              <div style={{flex:1}}><strong>{d.name}</strong>{d.note&&<div style={{fontSize:11,color:'#8892B0'}}>{d.note}</div>}</div>
+              {isDir&&<Btn size="sm" onClick={()=>setDayModal(d)} style={{padding:'2px 7px',flexShrink:0}}>✎</Btn>}
+              {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteDay(d.id,month)} style={{padding:'2px 6px',flexShrink:0}}>✕</Btn>}
+            </div>
+          </div>)}
+        </SectionCard>;
+  const secB=<SectionCard title="B/ Porady a zasadnutia" icon="📋"
+          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+</Btn>}>
+          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady tento mesiac.</div>}
+          {monthMeets.map(m=><div key={m.id} style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:isMobile?2:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:MEET_FG[m.type]||'#1E4B8F',minWidth:isMobile?0:85,fontSize:12,flexShrink:0}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
+            <div style={{flex:1,display:'flex',alignItems:'flex-start',gap:6}}>
+              <div style={{flex:1}}>
+                <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
+                <strong>{m.name}</strong>
+                {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
+              </div>
+              {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px',flexShrink:0}}>✎</Btn>}
+            </div>
+          </div>)}
+        </SectionCard>;
+  const secC=<SectionCard title="C/ Aktivity a podujatia" icon="🎯"
+          action={<Btn size="sm" variant="green" onClick={()=>setActModal({})}>+</Btn>}>
+          {!approved.length&&!pending.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
+          {/* Pending pre ne-riaditeľa */}
+          {!isDir&&pending.map(a=><div key={a.id} style={{padding:'6px 9px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
+            <span style={{fontSize:10,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 6px',borderRadius:9,border:'1px solid #FDE68A'}}>🕐 čaká</span>
+            <strong style={{color:'#92400E',marginLeft:5}}>{a.name}</strong>
+            <div style={{fontSize:11,color:'#B45309'}}>{fmtActDate(a)||'bez dátumu'} · {a.cls}</div>
+          </div>)}
+          {approved.map(a=><div key={a.id} style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:isMobile?2:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:isMobile?0:85,fontSize:12,flexShrink:0}}>{fmtActDate(a)}</div>
+            <div style={{flex:1,display:'flex',alignItems:'flex-start',gap:6}}>
+              <div style={{flex:1}}><strong>{a.name}</strong><div style={{fontSize:11,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div></div>
+              {isDir&&<div style={{display:'flex',gap:4,flexShrink:0}}>
+                <Btn size="sm" onClick={()=>setActModal(a)} style={{padding:'2px 7px'}}>✎</Btn>
+                <Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>
+              </div>}
+            </div>
+          </div>)}
+        </SectionCard>;
+  const secD=<SectionCard title="D/ Úlohy" icon="✅"
+          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setTaskModal({})}>+</Btn>}>
+          {!monthTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy.</div>}
+          {monthTasks.map(t=>{
+            const st=taskStatus(t,groups);
+            const members=getMembers(t.respType,t.respVal,groups);
+            const comp=t.completions||{};
+            const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
+            return<div key={t.id} style={{padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
+              <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:7}}>
+                <div style={{flex:1}}>
+                  {t.no&&<div style={{fontSize:10,fontWeight:700,color:'#8892B0',marginBottom:1}}>{t.no}</div>}
+                  <div style={{fontWeight:600,marginBottom:2}}>{t.txt}</div>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap',color:'#4A5278',fontSize:11}}>
+                    <span>👤 {respLabel(t.respType,t.respVal,users,groups)}</span>
+                    <span>📅 {deadLabel(t,month)}</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
+                  <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,-1,onSaveTask)} style={{padding:'2px 6px'}}>▲</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,1,onSaveTask)} style={{padding:'2px 6px'}}>▼</Btn>}
+                  {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)} style={{padding:'2px 7px'}}>✎</Btn>}
+                  {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)} style={{padding:'2px 6px'}}>✕</Btn>}
+                </div>
+              </div>
+              {members.length>1&&<div style={{marginTop:4}}><MemberPill members={members} comp={comp} users={users}/></div>}
+            </div>;
+          })}
+        </SectionCard>;
+
   return<div className="animate">
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,flexWrap:'wrap',gap:8}}>
       <div style={{fontSize:18,fontWeight:700}}>📅 Plán práce na mesiac</div>
@@ -724,85 +802,22 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     </div>}
 
     {/* 4 sekcie */}
-    <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:13}}>
+    {isMobile?<div style={{display:'flex',flexDirection:'column',gap:13}}>
+      {secA}
+      {secB}
+      {secC}
+      {secD}
+    </div>:
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
       <div>
-        <SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓"
-          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setDayModal({})}>+</Btn>}>
-          {!days.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne.</div>}
-          {days.map(d=><div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(d.date)}</div>
-            <div style={{flex:1}}><strong>{d.name}</strong>{d.note&&<div style={{fontSize:11,color:'#8892B0'}}>{d.note}</div>}</div>
-            {isDir&&<Btn size="sm" onClick={()=>setDayModal(d)} style={{padding:'2px 7px'}}>✎</Btn>}
-            {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteDay(d.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
-          </div>)}
-        </SectionCard>
-
-        <SectionCard title="C/ Aktivity a podujatia" icon="🎯"
-          action={<Btn size="sm" variant="green" onClick={()=>setActModal({})}>+</Btn>}>
-          {!approved.length&&!pending.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
-          {/* Pending pre ne-riaditeľa */}
-          {!isDir&&pending.map(a=><div key={a.id} style={{padding:'6px 9px',marginBottom:3,background:'#FFFBEB',borderLeft:'3px solid #F59E0B',borderRadius:5,fontSize:13}}>
-            <span style={{fontSize:10,fontWeight:700,color:'#B45309',background:'#FEF3C7',padding:'1px 6px',borderRadius:9,border:'1px solid #FDE68A'}}>🕐 čaká</span>
-            <strong style={{color:'#92400E',marginLeft:5}}>{a.name}</strong>
-            <div style={{fontSize:11,color:'#B45309'}}>{fmtActDate(a)||'bez dátumu'} · {a.cls}</div>
-          </div>)}
-          {approved.map(a=><div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtActDate(a)}</div>
-            <div style={{flex:1}}><strong>{a.name}</strong><div style={{fontSize:11,color:'#8892B0'}}>{a.cls} · {respLabel(a.respType||'single',a.respVal,users,groups)}</div></div>
-            {isDir&&<div style={{display:'flex',gap:4}}>
-              <Btn size="sm" onClick={()=>setActModal(a)} style={{padding:'2px 7px'}}>✎</Btn>
-              <Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>
-            </div>}
-          </div>)}
-        </SectionCard>
+        {secA}
+        {secC}
       </div>
       <div>
-        <SectionCard title="B/ Porady a zasadnutia" icon="📋"
-          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+</Btn>}>
-          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady tento mesiac.</div>}
-          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:MEET_FG[m.type]||'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
-            <div style={{flex:1}}>
-              <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
-              <strong>{m.name}</strong>
-              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
-            </div>
-            {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px'}}>✎</Btn>}
-          </div>)}
-        </SectionCard>
-
-        <SectionCard title="D/ Úlohy" icon="✅"
-          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setTaskModal({})}>+</Btn>}>
-          {!monthTasks.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne úlohy.</div>}
-          {monthTasks.map(t=>{
-            const st=taskStatus(t,groups);
-            const members=getMembers(t.respType,t.respVal,groups);
-            const comp=t.completions||{};
-            const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
-            return<div key={t.id} style={{padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
-              <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:7}}>
-                <div style={{flex:1}}>
-                  {t.no&&<div style={{fontSize:10,fontWeight:700,color:'#8892B0',marginBottom:1}}>{t.no}</div>}
-                  <div style={{fontWeight:600,marginBottom:2}}>{t.txt}</div>
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap',color:'#4A5278',fontSize:11}}>
-                    <span>👤 {respLabel(t.respType,t.respVal,users,groups)}</span>
-                    <span>📅 {deadLabel(t,month)}</span>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
-                  <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
-                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,-1,onSaveTask)} style={{padding:'2px 6px'}}>▲</Btn>}
-                  {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,1,onSaveTask)} style={{padding:'2px 6px'}}>▼</Btn>}
-                  {isDir&&<Btn size="sm" onClick={()=>setTaskModal(t)} style={{padding:'2px 7px'}}>✎</Btn>}
-                  {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteTask(t.id)} style={{padding:'2px 6px'}}>✕</Btn>}
-                </div>
-              </div>
-              {members.length>1&&<div style={{marginTop:4}}><MemberPill members={members} comp={comp} users={users}/></div>}
-            </div>;
-          })}
-        </SectionCard>
+        {secB}
+        {secD}
       </div>
-    </div>
+    </div>}
 
     {/* Modály */}
     {actModal!==null&&<ActModal existing={actModal?.id?actModal:null} month={month} defaultMonth={currentPlanMonth(config.sy)} data={data} curUser={curUser} planMonths={planMonths}
