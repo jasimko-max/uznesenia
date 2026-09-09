@@ -608,7 +608,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
   const [month,setMonth]=useState(()=>currentPlanMonth(config.sy));
   const [previewModal,setPreviewModal]=useState(false);
   const [actModal,setActModal]=useState(null); // null | {} | {existing}
-  const [dayModal,setDayModal]=useState(false);
+  const [dayModal,setDayModal]=useState(null);
   const [taskModal,setTaskModal]=useState(null);
   const [meetModal,setMeetModal]=useState(false);
   const [editMeetModal,setEditMeetModal]=useState(null);
@@ -659,7 +659,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
         <Btn size="sm" variant="outline" onClick={()=>setPreviewModal(true)}>👁 Náhľad</Btn>
         {isDir&&<Btn size="sm" variant="primary" onClick={printPlan}>🖨 Tlačiť / PDF</Btn>}
         {isDir&&<Btn size="sm" variant="amber" onClick={()=>setCopyPlanModal(true)}>📋 Kopírovať plán</Btn>}
-        {isDir&&<><Btn size="sm" variant="green" onClick={()=>setDayModal(true)}>+ Sviatok</Btn>
+        {isDir&&<><Btn size="sm" variant="green" onClick={()=>setDayModal({})}>+ Sviatok</Btn>
           <Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+ Porada</Btn>
           <Btn size="sm" variant="green" onClick={()=>setTaskModal({})}>+ Úloha</Btn></>}
         <Btn size="sm" variant="green" onClick={()=>setActModal({})}>📬 Aktivita</Btn>
@@ -711,30 +711,16 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:13}}>
       <div>
         <SectionCard title="A/ Štátne sviatky a pamätné dni" icon="🗓"
-          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setDayModal(true)}>+</Btn>}>
+          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setDayModal({})}>+</Btn>}>
           {!days.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne.</div>}
           {days.map(d=><div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
             <div style={{fontWeight:600,color:'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(d.date)}</div>
             <div style={{flex:1}}><strong>{d.name}</strong>{d.note&&<div style={{fontSize:11,color:'#8892B0'}}>{d.note}</div>}</div>
+            {isDir&&<Btn size="sm" onClick={()=>setDayModal(d)} style={{padding:'2px 7px'}}>✎</Btn>}
             {isDir&&<Btn size="sm" variant="red" onClick={()=>onDeleteDay(d.id,month)} style={{padding:'2px 6px'}}>✕</Btn>}
           </div>)}
         </SectionCard>
 
-        <SectionCard title="B/ Porady a zasadnutia" icon="📋"
-          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+</Btn>}>
-          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady tento mesiac.</div>}
-          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
-            <div style={{fontWeight:600,color:MEET_FG[m.type]||'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
-            <div style={{flex:1}}>
-              <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
-              <strong>{m.name}</strong>
-              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
-            </div>
-            {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px'}}>✎</Btn>}
-          </div>)}
-        </SectionCard>
-      </div>
-      <div>
         <SectionCard title="C/ Aktivity a podujatia" icon="🎯"
           action={<Btn size="sm" variant="green" onClick={()=>setActModal({})}>+</Btn>}>
           {!approved.length&&!pending.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne aktivity.</div>}
@@ -751,6 +737,21 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
               <Btn size="sm" onClick={()=>setActModal(a)} style={{padding:'2px 7px'}}>✎</Btn>
               <Btn size="sm" variant="red" onClick={()=>onDeleteAct(a.id,month)} style={{padding:'2px 6px'}}>✕</Btn>
             </div>}
+          </div>)}
+        </SectionCard>
+      </div>
+      <div>
+        <SectionCard title="B/ Porady a zasadnutia" icon="📋"
+          action={isDir&&<Btn size="sm" variant="green" onClick={()=>setMeetModal(true)}>+</Btn>}>
+          {!monthMeets.length&&<div style={{color:'#8892B0',fontStyle:'italic',fontSize:13}}>Žiadne porady tento mesiac.</div>}
+          {monthMeets.map(m=><div key={m.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:13}}>
+            <div style={{fontWeight:600,color:MEET_FG[m.type]||'#1E4B8F',minWidth:85,fontSize:12,flexShrink:0}}>{fmtS(m.date)}{m.time?' '+m.time:''}</div>
+            <div style={{flex:1}}>
+              <span style={{display:'inline-flex',padding:'1px 6px',borderRadius:5,fontSize:11,fontWeight:700,background:MEET_BG[m.type]||'#EEF3FC',color:MEET_FG[m.type]||'#1E4B8F',marginRight:5}}>{m.type}</span>
+              <strong>{m.name}</strong>
+              {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
+            </div>
+            {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px'}}>✎</Btn>}
           </div>)}
         </SectionCard>
 
@@ -791,7 +792,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {actModal!==null&&<ActModal existing={actModal?.id?actModal:null} month={month} defaultMonth={currentPlanMonth(config.sy)} data={data} curUser={curUser} planMonths={planMonths}
       onSave={d=>{onSaveAct(d);setActModal(null);toast(curUser.role==='r'?'Aktivita uložená.':'Odoslaná na schválenie 📬','ok');}}
       onClose={()=>setActModal(null)}/>}
-    {dayModal&&<DayModal month={month} planMonths={planMonths} onSave={d=>{onSaveDay(d);setDayModal(false);toast('Uložené.','ok');}} onClose={()=>setDayModal(false)}/>}
+    {dayModal&&<DayModal existing={dayModal?.id?dayModal:null} month={month} planMonths={planMonths} onSave={d=>{onSaveDay(d);setDayModal(null);toast('Uložené.','ok');}} onClose={()=>setDayModal(null)}/>}
     {taskModal!==null&&<PlanTaskModal task={taskModal} month={month} data={data} planMonths={planMonths}
       onSave={d=>{onSaveTask(d);setTaskModal(null);toast('Úloha uložená.','ok');}}
       onClose={()=>setTaskModal(null)}/>}
@@ -917,14 +918,15 @@ function ActModal({existing,month,defaultMonth,data,curUser,planMonths,onSave,on
   </Modal>;
 }
 
-function DayModal({month,planMonths,onSave,onClose}){
-  const [date,setDate]=useState('');
-  const [name,setName]=useState('');
-  const [note,setNote]=useState('');
-  const [selMonth,setSelMonth]=useState(month);
+function DayModal({existing,month,planMonths,onSave,onClose}){
+  const isEdit=!!existing?.id;
+  const [date,setDate]=useState(existing?.date||'');
+  const [name,setName]=useState(existing?.name||'');
+  const [note,setNote]=useState(existing?.note||'');
+  const [selMonth,setSelMonth]=useState(existing?.month||month);
   const [saving,setSaving]=useState(false);
-  const save=async()=>{if(!date||!name)return;setSaving(true);await onSave({id:'d'+uid(),date,name,note,month:selMonth});setSaving(false);};
-  return<Modal title="Sviatok / pamätný deň" onClose={onClose} maxWidth={440}
+  const save=async()=>{if(!date||!name)return;setSaving(true);await onSave({id:existing?.id||'d'+uid(),date,name,note,month:selMonth});setSaving(false);};
+  return<Modal title={isEdit?'Upraviť sviatok / pamätný deň':'Sviatok / pamätný deň'} onClose={onClose} maxWidth={440}
     footer={<><Btn onClick={onClose}>Zrušiť</Btn><Btn variant="primary" onClick={save} disabled={saving}>Uložiť</Btn></>}>
     <Row2>
       <Field label="Dátum"><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>
@@ -1497,8 +1499,13 @@ function App(){
     return trackedApiPost('updateActivityStatus',{id,month,status}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const saveDay=day=>{
-    setData(d=>{const plans={...d.plans};if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
-      plans[day.month]={...plans[day.month],days:[...plans[day.month].days.filter(x=>x.id!==day.id),day]};return{...d,plans};});
+    setData(d=>{const plans={...d.plans};
+      // Najprv odstráň prípadný pôvodný záznam z ktoréhokoľvek mesiaca (napr. pri zmene mesiaca pri úprave)
+      for(const k of Object.keys(plans)) if(plans[k]?.days?.some(x=>x.id===day.id))
+        plans[k]={...plans[k],days:plans[k].days.filter(x=>x.id!==day.id)};
+      if(!plans[day.month])plans[day.month]={published:false,days:[],activities:[]};
+      plans[day.month]={...plans[day.month],days:[...plans[day.month].days,day]};
+      return{...d,plans};});
     return trackedApiPost('saveDay',{data:day}).catch(e=>showToast('Chyba: '+e.message,'err'));
   };
   const deleteDay=(id,month)=>{
