@@ -780,7 +780,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
             const comp=t.completions||{};
             const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
             return<div key={t.id} style={{padding:'7px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
-              <div style={{display:'flex',alignItems:'flex-start',gap:7}}>
+              <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:7}}>
                 <div style={{flex:1}}>
                   {t.no&&<div style={{fontSize:10,fontWeight:700,color:'#8892B0',marginBottom:1}}>{t.no}</div>}
                   <div style={{fontWeight:600,marginBottom:2}}>{t.txt}</div>
@@ -789,7 +789,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
                     <span>📅 {deadLabel(t,month)}</span>
                   </div>
                 </div>
-                <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center'}}>
+                <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
                   <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
                   {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,-1,onSaveTask)} style={{padding:'2px 6px'}}>▲</Btn>}
                   {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(monthTasks,t.id,1,onSaveTask)} style={{padding:'2px 6px'}}>▼</Btn>}
@@ -1008,6 +1008,7 @@ function MeetModal({existing,type,data,planMonths,defaultMonth,onSave,onClose}){
 function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDeleteTask,onMarkDone,onChangeStatus,toast}){
   const {meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
+  const isMobile=useIsMobile();
   const planMonths=getPlanMonths(config.sy);
   const {from:syFrom,to:syTo}=getSyDateRange(config.sy);
   const myMeetings=meetings.filter(m=>m.type===type&&(m.date||'')>=syFrom&&(m.date||'')<=syTo).sort((a,b)=>b.date>a.date?1:-1);
@@ -1133,7 +1134,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
             const comp=t.completions||{};
             const isMyTask=members.includes(curUser.id)&&!comp[curUser.id]?.done;
             return<div key={t.id} style={{borderBottom:'1px solid #F0F4FA',padding:'10px 0'}}>
-              <div style={{display:'flex',alignItems:'flex-start',gap:9}}>
+              <div style={{display:'flex',flexDirection:isMobile?'column':'row',alignItems:isMobile?'stretch':'flex-start',gap:9}}>
                 <div style={{flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                     {t.no&&<span style={{fontSize:11,fontWeight:700,color:'#8892B0'}}>{t.no}</span>}
@@ -1146,7 +1147,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
                     {t.dead||t.taskType==='month'||t.taskType==='permanent'?<span style={{marginLeft:10}}>📅 {deadLabel(t,'')}</span>:null}
                   </div>
                 </div>
-                <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center'}}>
+                <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center',flexWrap:'wrap'}}>
                   <StatusBadge task={t} curUser={curUser} groups={groups} onChangeStatus={onChangeStatus}/>
                   {isMyTask&&<Btn size="sm" variant="green" onClick={()=>setDoneModal(t)}>✓</Btn>}
                   {isDir&&<Btn size="sm" onClick={()=>moveTaskOrder(myTasks,t.id,-1,onSaveTask)}>▲</Btn>}
