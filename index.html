@@ -1066,12 +1066,12 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
   };
 
   return<div className="animate">
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,flexWrap:'wrap',gap:8}}>
       <div style={{fontSize:18,fontWeight:700,display:'flex',alignItems:'center',gap:8}}>
         <span style={{background:MEET_BG[type]||'#EEF3FC',color:MEET_FG[type]||'#1E4B8F',padding:'3px 10px',borderRadius:7,fontSize:14,fontWeight:700}}>{type}</span>
         {typeName}
       </div>
-      <div style={{display:'flex',gap:7}}>
+      <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
         {/* Riaditeľ: tlač + zverejniť | Učiteľ: náhľad len keď je zverejnené */}
         {isDir&&sel&&<Btn size="sm" onClick={printMeeting}>🖨 Tlačiť / PDF</Btn>}
         {isDir&&sel&&<Btn size="sm" variant={sel.published?'outline':'green'} onClick={()=>onSaveMeet({...sel,published:!sel.published})}>
@@ -1091,11 +1091,15 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
       {isDir&&<div style={{marginTop:14}}><Btn variant="primary" onClick={()=>setMeetModal(true)}>+ Vytvoriť novú</Btn></div>}
     </div>}
 
-    {myMeetings.length>0&&<div style={{display:'flex',gap:14}}>
+    {myMeetings.length>0&&<div style={{display:'flex',flexDirection:isMobile?'column':'row',gap:14}}>
       {/* Zoznam */}
-      <div style={{width:240,flexShrink:0}}>
+      <div style={{width:isMobile?'100%':240,flexShrink:0}}>
         <div style={{fontSize:11,fontWeight:700,color:'#8892B0',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:8}}>Zoznam</div>
-        {myMeetings.map(m=>{
+        {isMobile?
+        <select value={sel?.id||''} onChange={e=>setSelId(e.target.value)} style={{width:'100%'}}>
+          {myMeetings.map(m=><option key={m.id} value={m.id}>{m.name} — {fmt(m.date)}</option>)}
+        </select>
+        :myMeetings.map(m=>{
           const mTasks=tasks.filter(t=>t.mid===m.id);
           const done=mTasks.filter(t=>taskStatus(t,groups)==='splnene').length;
           const on=selId===m.id||(selId===null&&m.id===myMeetings[0]?.id);
