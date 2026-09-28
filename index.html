@@ -134,7 +134,12 @@ function taskStatus(t,groups){
 function sortByOrder(list){return [...list].sort((a,b)=>(a.order??0)-(b.order??0));}
 // Mesiac plánu, do ktorého porada patrí – uprednostní explicitné pole m.month (nastaviteľné v MeetModali),
 // pri starších záznamoch bez neho spadne späť na mesiac odvodený z dátumu konania.
-function meetMonth(m){return m.month||(m.date||'').slice(0,7);}
+function meetMonth(m){
+  // .slice(0,7) je zámerné aj pre m.month: ak by Sheets predsa len hodnotu preformátoval na dátum,
+  // výsledný reťazec začína rovnako "YYYY-MM" prefixom, takže porovnanie mesiaca zostane funkčné.
+  const v=m.month||m.date||'';
+  return String(v).slice(0,7);
+}
 // Presunie úlohu o 1 hore/dole v rámci zoznamu (list musí byť v aktuálnom poradí zobrazenia)
 // a prečísluje poradie – uloží len tie úlohy, ktorým sa poradie skutočne zmenilo.
 function moveTaskOrder(list,id,dir,onSaveTask){
