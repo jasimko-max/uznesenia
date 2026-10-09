@@ -75,9 +75,18 @@ function currentPlanMonth(sy){
 function apiHeaders(){
   return {'Content-Type':'application/json','X-Session-Token':sessionToken||''};
 }
+// Keď vyprší platnosť session (napr. appka ostala otvorená cez noc), App nás vráti na prihlásenie
+let onSessionExpired=null;
+function checkAuthFail(r,j){
+  if(r.status===401||(j&&j.error==='Neplatná session.')){
+    sessionToken=null;
+    if(onSessionExpired) onSessionExpired();
+  }
+}
 async function apiGet(action=''){
   const r=await fetch(WORKER+(action?'?action='+action:''),{headers:apiHeaders()});
   const j=await r.json();
+  checkAuthFail(r,j);
   if(!j.ok) throw new Error(j.error);
   return j.data;
 }
@@ -85,6 +94,7 @@ async function apiPost(action,payload={}){
   const r=await fetch(WORKER,{method:'POST',headers:apiHeaders(),
     body:JSON.stringify({action,...payload})});
   const j=await r.json();
+  checkAuthFail(r,j);
   if(!j.ok) throw new Error(j.error);
   return j.result;
 }
@@ -1452,6 +1462,16 @@ function App(){
   useEffect(()=>{document.body.classList.toggle('dark',dark);},[]);
 
   const showToast=(msg,type='inf')=>setToast({msg,type});
+
+  // Vypršaná session → späť na prihlásenie s jasnou správou
+  useEffect(()=>{
+    onSessionExpired=()=>{
+      setCurUser(null);
+      setStatus('login');
+      setToast({msg:'Platnosť prihlásenia vypršala. Prihláste sa prosím znova.',type:'err'});
+    };
+    return()=>{onSessionExpired=null;};
+  },[]);
 
   useEffect(()=>{
     (async()=>{
