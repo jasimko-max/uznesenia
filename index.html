@@ -594,7 +594,7 @@ function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
     <style>body{font-family:Arial,sans-serif;margin:35px;font-size:12pt}h1{font-size:15pt;text-align:center;margin-bottom:3px}h3{font-size:11pt;text-align:center;color:#555;margin-bottom:18px}h2{font-size:12pt;margin:16px 0 5px;border-bottom:1px solid #000;padding-bottom:2px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:5px 8px;font-size:11pt}th{background:#eee}ol{margin:0 0 0 18px}li{margin-bottom:5px}.sig{margin-top:50px;display:flex;justify-content:space-between}.empty{color:#999;font-style:italic}</style></head><body>
     <h1>${typeName}</h1><h3>${config.school||'ZŠ s MŠ, Višňové 446'} · ${meeting.date?fmt(meeting.date):'dátum neurčený'}${meeting.time?' · '+meeting.time:''}</h3>
     ${meeting.place?`<p><b>Poznámka:</b> ${meeting.place}</p>`:''}
-    <h2>Program</h2>${meeting.program?`<ol>${(meeting.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="empty">Bez programu.</p>'}
+    <h2>Program</h2>${meeting.program?programHtml(meeting.program):'<p class="empty">Bez programu.</p>'}
     <h2>${isPA?'Uznesenia':'Úlohy'}</h2>${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,'')}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <div class="sig"><div><br/><br/>________________________________<br/>Zapisovateľ/ka</div><div><br/><br/>________________________________<br/>riaditeľ školy</div></div>
     </body></html>`;
@@ -609,9 +609,7 @@ function MeetingPreviewModal({meeting,tasks,data,type,onClose}){
       </div>
       <div style={{padding:'14px 18px'}}>
         <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:6,textTransform:'uppercase',letterSpacing:'.04em'}}>Program</div>
-        {meeting.program?<ol style={{margin:'0 0 14px 18px',padding:0}}>
-          {(meeting.program||'').split('\n').filter(Boolean).map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0'}}>{l}</li>)}
-        </ol>:<div style={{fontSize:13,color:'#8892B0',fontStyle:'italic',marginBottom:14}}>Bez programu.</div>}
+        {meeting.program?<div style={{margin:'0 0 14px 0'}}><ProgramList text={meeting.program}/></div>:<div style={{fontSize:13,color:'#8892B0',fontStyle:'italic',marginBottom:14}}>Bez programu.</div>}
         <div style={{fontSize:12,fontWeight:700,color:'#4A5278',marginBottom:6,textTransform:'uppercase',letterSpacing:'.04em'}}>{type==='PR'?'Uznesenia':'Úlohy'} ({myTasks.length})</div>
         {myTasks.length?myTasks.map(t=>{const st=taskStatus(t,groups);return<div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid #F8FAFD',fontSize:12}}>
           <span style={{color:'#8892B0',minWidth:50,fontSize:11}}>{t.no||'—'}</span>
@@ -1071,7 +1069,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
     <h3>${config.school||'ZŠ s MŠ, Višňové 446'} · ${fmt(sel.date)}${sel.time?' · '+sel.time:''}</h3>
     ${sel.place?`<p><b>Poznámka:</b> ${sel.place}</p>`:''}
     <h2>Program</h2>
-    ${sel.program?`<ol>${(sel.program||'').split('\n').filter(Boolean).map(l=>`<li>${l}</li>`).join('')}</ol>`:'<p class="empty">Bez programu.</p>'}
+    ${sel.program?programHtml(sel.program):'<p class="empty">Bez programu.</p>'}
     <h2>${isPA?'Uznesenia':'Úlohy'}</h2>
     ${myTasks.length?`<table><tr><th>Č.</th><th>${isPA?'Uznesenie':'Úloha'}</th><th>Zodpovedný/á</th><th>Termín</th></tr>${myTasks.map(t=>`<tr><td>${t.no||'—'}</td><td>${t.txt}${t.note?'<br/><small>'+t.note+'</small>':''}</td><td>${respLabel(t.respType,t.respVal,users,groups)}</td><td>${deadLabel(t,'')}</td></tr>`).join('')}</table>`:'<p class="empty">Žiadne.</p>'}
     <div class="sig">
@@ -1147,9 +1145,7 @@ function MeetingView({data,curUser,type,onSaveMeet,onDeleteMeet,onSaveTask,onDel
               ?<ProgramEditor key={sel.id} sel={sel} onSave={async prog=>{await onSaveMeet({...sel,program:prog});toast('Program uložený.','ok');}}/>
               :<div style={{fontSize:13,lineHeight:1.9}}>
                 {sel.program
-                  ?sel.program.split('\n').filter(Boolean).map((l,i)=><div key={i} style={{display:'flex',gap:8,padding:'3px 0',borderBottom:'1px solid #F8FAFD'}}>
-                    <span style={{color:'#1E4B8F',fontWeight:700,minWidth:20}}>{i+1}.</span><span>{l}</span>
-                  </div>)
+                  ?<ProgramList text={sel.program} borders/>
                   :<span style={{color:'#8892B0',fontStyle:'italic'}}>Program ešte nie je zadaný.</span>}
               </div>}
           </div>
@@ -1358,14 +1354,50 @@ function CopyPlanModal({sourceMonth,sourcePlan,sourceTasks,data,onSaveMeet,onSav
   </Modal>;
 }
 
+// Program porady: riadok začínajúci pomlčkou (-, –, •) je odrážka pod predchádzajúcim bodom a nečísluje sa
+function parseProgram(text){
+  const out=[];let n=0;
+  (text||'').split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    const m=l.match(/^[-–—•]\s*(.*)$/);
+    if(m) out.push({bullet:true,txt:m[1]});
+    else out.push({bullet:false,num:++n,txt:l});
+  });
+  return out;
+}
+function escHtml(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function programHtml(text){
+  return parseProgram(text).map(it=>it.bullet
+    ?`<div style="display:flex;margin:1px 0 1px 24px"><span style="min-width:14px">–</span><span>${escHtml(it.txt)}</span></div>`
+    :`<div style="display:flex;margin:3px 0"><span style="min-width:24px">${it.num}.</span><span>${escHtml(it.txt)}</span></div>`
+  ).join('');
+}
+function ProgramList({text,borders=false}){
+  return<div>{parseProgram(text).map((it,i)=>it.bullet
+    ?<div key={i} style={{display:'flex',gap:6,padding:'1px 0 1px 28px',fontSize:13}}><span>–</span><span>{it.txt}</span></div>
+    :<div key={i} style={{display:'flex',gap:8,padding:'3px 0',fontSize:13,borderBottom:borders?'1px solid #F8FAFD':'none'}}>
+      <span style={{color:'#1E4B8F',fontWeight:700,minWidth:20}}>{it.num}.</span><span>{it.txt}</span></div>)}</div>;
+}
+
 function ProgramEditor({sel,onSave}){
   const [text,setText]=useState(sel.program||'');
   const [saving,setSaving]=useState(false);
   const changed=text!==(sel.program||'');
+  const taRef=useRef(null);
+  const onKey=e=>{
+    // Shift+Enter = nový riadok s pomlčkou (odrážka, ktorá sa nečísluje)
+    if(e.key==='Enter'&&e.shiftKey){
+      e.preventDefault();
+      const el=e.target,a=el.selectionStart,b=el.selectionEnd;
+      const ins='\n- ';
+      setText(text.slice(0,a)+ins+text.slice(b));
+      requestAnimationFrame(()=>{if(taRef.current){taRef.current.selectionStart=taRef.current.selectionEnd=a+ins.length;}});
+    }
+  };
   return<div>
-    <textarea value={text} onChange={e=>setText(e.target.value)} rows={6}
-      placeholder={"1. Otvorenie\n2. Správa o prospechu\n3. Rôzne\n…každý bod na nový riadok"}
-      style={{resize:'vertical',marginBottom:8,fontSize:13,lineHeight:1.7}}/>
+    <textarea ref={taRef} value={text} onChange={e=>setText(e.target.value)} onKeyDown={onKey} rows={6}
+      placeholder={"Otvorenie\nSpráva o prospechu\nRôzne\n- odrážka (nečísluje sa)"}
+      style={{resize:'vertical',marginBottom:4,fontSize:13,lineHeight:1.7}}/>
+    <div style={{fontSize:11,color:'#8892B0',marginBottom:8}}>Enter = nový číslovaný bod · Shift+Enter (alebo riadok začínajúci „-“) = odrážka bez čísla</div>
     <Btn size="sm" variant="primary" disabled={!changed||saving} onClick={async()=>{setSaving(true);await onSave(text);setSaving(false);}}>
       {saving?'Ukladám…':'💾 Uložiť program'}
     </Btn>
