@@ -772,7 +772,7 @@ function ExportActivitiesModal({data,onClose,toast}){
   </Modal>;
 }
 
-function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
+function PlanView({data,curUser,onSaveMeet,onDeleteMeet,onSaveTask,onDeleteTask,onSaveAct,onDeleteAct,onApproveAct,onSaveDay,onDeleteDay,onPublish,onMarkDone,onChangeStatus,toast}){
   const {plans,meetings,tasks,users,groups,config}=data;
   const isDir=curUser.role==='r';
   const isMobile=useIsMobile();
@@ -786,6 +786,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
   const [editMeetModal,setEditMeetModal]=useState(null);
   const [copyPlanModal,setCopyPlanModal]=useState(false);
   const [exportModal,setExportModal]=useState(false);
+  const [confirmDelMeet,setConfirmDelMeet]=useState(null);
 
   const pm=plans[month]||{published:false,days:[],activities:[]};
   const monthMeets=meetings.filter(m=>meetMonth(m)===month).sort((a,b)=>a.date>b.date?1:-1);
@@ -845,6 +846,7 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
                 {m.place&&<div style={{fontSize:11,color:'#8892B0'}}>📝 {m.place}</div>}
               </div>
               {isDir&&<Btn size="sm" onClick={()=>setEditMeetModal(m)} style={{padding:'2px 7px',flexShrink:0}}>✎</Btn>}
+              {isDir&&<Btn size="sm" variant="red" onClick={()=>setConfirmDelMeet(m)} style={{padding:'2px 6px',flexShrink:0}}>✕</Btn>}
             </div>
           </div>)}
         </SectionCard>;
@@ -995,6 +997,10 @@ function PlanView({data,curUser,onSaveMeet,onSaveTask,onDeleteTask,onSaveAct,onD
     {editMeetModal&&<MeetModal existing={editMeetModal} data={data} planMonths={planMonths} defaultMonth={month}
       onSave={d=>{onSaveMeet(d);setEditMeetModal(null);toast('Porada uložená.','ok');}}
       onClose={()=>setEditMeetModal(null)}/>}
+    {confirmDelMeet&&<Modal title="Vymazať poradu / zasadnutie?" onClose={()=>setConfirmDelMeet(null)} maxWidth={380}
+      footer={<><Btn onClick={()=>setConfirmDelMeet(null)}>Zrušiť</Btn><Btn variant="red" onClick={()=>{onDeleteMeet(confirmDelMeet.id);setConfirmDelMeet(null);toast('Porada vymazaná.');}}>Vymazať</Btn></>}>
+      <div style={{fontSize:13,color:'#4A5278'}}>Naozaj vymazať <strong>{confirmDelMeet.name}</strong>? Vymažú sa aj všetky úlohy a uznesenia zadané v tejto porade. Túto akciu nemožno vrátiť.</div>
+    </Modal>}
     {exportModal&&<ExportActivitiesModal data={data} toast={toast} onClose={()=>setExportModal(false)}/>}
     {copyPlanModal&&<CopyPlanModal sourceMonth={month} sourcePlan={pm} sourceTasks={tasks} data={data}
       onSaveMeet={onSaveMeet} onSaveTask={onSaveTask} onSaveDay={onSaveDay} onSaveAct={onSaveAct}
@@ -1849,7 +1855,7 @@ function App(){
 
         <main style={{flex:1,overflowY:'auto',padding:isMobile?12:22}}>
           {view==='plan'&&<PlanView data={data} curUser={curUser}
-            onSaveMeet={saveMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
+            onSaveMeet={saveMeeting} onDeleteMeet={deleteMeeting} onSaveTask={saveTask} onDeleteTask={deleteTask}
             onSaveAct={saveActivity} onDeleteAct={deleteActivity} onApproveAct={approveActivity}
             onSaveDay={saveDay} onDeleteDay={deleteDay} onPublish={publishPlan} onMarkDone={markDone} onChangeStatus={changeTaskStatus} toast={showToast}/>}
           {view==='pp'&&<MeetingView data={data} curUser={curUser} type="PP"
